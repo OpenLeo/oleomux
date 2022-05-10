@@ -5,6 +5,7 @@ from tkinter.ttk import Combobox
 from functools import partial
 import threading, sys, traceback, time, yaml, serial.tools.list_ports
 from oleomgr import oleomgr
+from oleotree import oleotree
 from source_handler import CandumpHandler, InvalidFrame, CANHandler, SerialHandler, ArdLogHandler
 from recordclass import recordclass
 import cantools
@@ -498,7 +499,8 @@ class oleomux:
         Show a tickbox view of all the loaded messages
         to choose which ones to export to C
         '''
-        pass
+        olt = oleotree(self.master)
+        
 
     def importDBC(self):
         '''
