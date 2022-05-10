@@ -1476,8 +1476,9 @@ class oleomux:
 ################### OVERVIEW  ############################
     
     def addwinViewRow(self):
-        if len(self.messages) == 0:
-                    return
+        if len(self.omgr.messages) == 0:
+            return
+            
         z = len(self.winViewCmb)
         cmb = Combobox(self.winView, values=['Choose...'], width=40)
         cmb.grid(row=z+2, column=1)
