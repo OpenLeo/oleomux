@@ -336,7 +336,7 @@ class oleomgr:
             return False
 
 
-    def export_to_struct(self, tree, include_list):
+    def export_to_struct(self, fname, include_list):
         '''
         Write the structure definitions for a given database
 
@@ -347,13 +347,22 @@ class oleomgr:
         out = []
         defines = []
         
-        for message in tree:
-            if message.frame_id not in include_list:
-                continue
+        for message in self.messages:
+            if include_list is not None:
+                if self.messages[message].frame_id not in include_list:
+                    continue
 
-            out.append("typedef struct " + self.STRUCT_PREFIX + message.name.lower() + "{")
+            out.append("typedef struct " + self.STRUCT_PREFIX + self.messages[message].name.lower() + "{")
 
-            for signal in message.signals:
+            signal_offset = 0
+            for signal in self.messages[message].signals:
+                if include_list is not None:
+                    if self.messages[message].frame_id not in include_list:
+                        continue
+                    elif signal_offset not in include_list[self.messages[message].frame_id]:
+                        continue
+                signal_offset += 1
+
                 if signal.choices is not None:
                     for choice in signal.choices:
                         defines.append("#define " + signal.name + "_" + str(signal.choices[choice]).upper().replace(" ", "_") + "    " + str(choice))
@@ -376,7 +385,7 @@ class oleomgr:
                     else:
                         out.append(self.TAB + self.TYPE_U32 + " " + signal.name + ";")
 
-            out.append("}; ")
+            out.append("} " + self.STRUCT_PREFIX + self.messages[message].name.lower() + "; ")
             out.append("")
 
         for line in defines:
@@ -385,11 +394,12 @@ class oleomgr:
         print()
         print()
         
-        for line in out:
-            print(line)
+        with open(fname + '_messages.h', 'w') as f:
+            for line in out:
+                f.write("%s\n" % line)
 
 
-    def export_parser_c(self, tree, include_list):
+    def export_parser_c(self, fname, include_list):
         '''
         Export automatic parsing functions for OLE databases
 
@@ -398,15 +408,33 @@ class oleomgr:
         '''
 
         out = []
-        
-        for message in tree:
-            if message.frame_id not in include_list:
-                continue
+        out_h = []
 
-            out.append("void " + self.FUNC_PARSE_PREFIX + message.name.lower() + "(can_msg* msg, " + self.STRUCT_PREFIX + message.name.lower() + "* ptr) {")
+        out_h.append('#include "' + fname + '_messages.h"')
+        out_h.append("")
+
+        out.append('#include "' + fname + '.h"')
+        out.append("")
+        
+        for message in self.messages:
+            if include_list is not None:
+                if self.messages[message].frame_id not in include_list:
+                    continue
+
+            out_h.append("void " + self.FUNC_PARSE_PREFIX + self.messages[message].name.lower() + "(can_msg* msg, " + self.STRUCT_PREFIX + self.messages[message].name.lower() + "* ptr);")
+
+            out.append("void " + self.FUNC_PARSE_PREFIX + self.messages[message].name.lower() + "(can_msg* msg, " + self.STRUCT_PREFIX + self.messages[message].name.lower() + "* ptr) {")
             out.append("")
 
-            for signal in message.signals:
+            signal_offset = 0
+            for signal in self.messages[message].signals:
+                if include_list is not None:
+                    if self.messages[message].frame_id not in include_list:
+                        continue
+                    elif signal_offset not in include_list[self.messages[message].frame_id]:
+                        continue
+                signal_offset += 1
+
                 bitlen = signal.length
                 start = self.endian_translate(signal.start)
                 byte_start = math.trunc(start / 8)
@@ -445,8 +473,13 @@ class oleomgr:
             out.append("}")
             out.append("")
         
-        for line in out:
-            print(line)
+        with open(fname + '.h', 'w') as f:
+            for line in out_h:
+                f.write("%s\n" % line)
+        
+        with open(fname + '.c', 'w') as f:
+            for line in out:
+                f.write("%s\n" % line)
 
 
     def get_translation_list(self, tree):
@@ -468,7 +501,6 @@ if __name__ == "__main__":
             sys.exit()
 
     db = cantools.database.load_file('B9R_CONF_AEE07.dbc', strict=False, encoding = 'utf-8')
-    cmr = candb()
 
     inc_list = [ 0x36, 0xF6, 268, 296 ]
     #cmr.export_to_struct(db.messages, inc_list)

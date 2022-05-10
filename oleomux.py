@@ -494,12 +494,31 @@ class oleomux:
     def saveYAMLselected(self):
         pass
 
+    def exportCaction(self, results):
+        '''
+        Actually do the export
+        '''
+        fname = filedialog.asksaveasfile(title = "Choose filename for export...",
+                                        filetypes = (("C files", 
+                                                                    "*.c*"), 
+                                                                ("all files", 
+                                                                    "*.*"))) 
+        if fname == ():
+            return
+
+        h_file = str(fname.name).replace(".c", "").split("/")[-1]
+
+        self.omgr.export_to_struct(h_file, results)
+        self.omgr.export_parser_c(h_file, results)
+        messagebox.showinfo(title="OK", message="Export done to " + str(h_file))
+        
+
     def exportCoptions(self):
         '''
         Show a tickbox view of all the loaded messages
         to choose which ones to export to C
         '''
-        olt = oleotree(self.master)
+        olt = oleotree(self.master, self, self.exportCaction)
         
 
     def importDBC(self):
@@ -1480,7 +1499,7 @@ class oleomux:
     def addwinViewRow(self):
         if len(self.omgr.messages) == 0:
             return
-            
+
         z = len(self.winViewCmb)
         cmb = Combobox(self.winView, values=['Choose...'], width=40)
         cmb.grid(row=z+2, column=1)
@@ -1490,16 +1509,17 @@ class oleomux:
         items = []
         ref = 0
         ry = 0
-        for x in self.messages:
-            for y in x:
-                items.append(self.messageType['values'][ref] + " - " + y["desc"])
-                rz = []
-                rz.append(ref)
-                rz.append(ry)
-                rx.append(rz)
-                ry = ry + 1
-            ref = ref + 1
-            ry = 0
+        for message in self.omgr.messages:
+            pass
+            #for y in message:
+            #    items.append(self.messageType['values'][ref] + " - " + y["desc"])
+            #    rz = []
+            #    rz.append(ref)
+            #    rz.append(ry)
+            #    rx.append(rz)
+            #    ry = ry + 1
+            #ef = ref + 1
+            #ry = 0
         self.winViewCmb[z]['values'] = items
         self.winViewEntries.append(Entry(self.winView, textvariable=self.winViewValues[z], state='readonly'))
         self.winViewEntries[z].grid(column=2, row=z+2)
