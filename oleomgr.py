@@ -133,15 +133,26 @@ class oleomgr:
         if type(signal) is dict:
             if src is not None:
                 signal["src"] = src
-            return signal
+            
+            output = signal
+
+            if "name_en" not in output:
+                output["name_en"] = ""
+            if "comment_en" not in output:
+                output["comment_en"] = ""
+            if "comment_fr" not in output:
+                output["comment_fr"] = ""
+            if "src" not in output:
+                output["src"] = ""
+
+            return output
 
         if signal is None:
             if src is not None:
-                signal = { "src": src }
-                return signal
+                output["src"] = src
 
         try:
-            if ";" in signal.comment:
+            if ";" in signal:
                 comments = signal.split(";")
                 for comment in comments:
                     csplit = comment.split(":")
@@ -149,11 +160,21 @@ class oleomgr:
 
                 if src is not None:
                     output["src"] = src
-                return output
+            else:
+                output["comment_fr"] = signal
         except:
             pass
 
-        return signal
+        if "name_en" not in output:
+            output["name_en"] = ""
+        if "comment_en" not in output:
+            output["comment_en"] = ""
+        if "comment_fr" not in output:
+            output["comment_fr"] = ""
+        if "src" not in output:
+            output["src"] = ""
+
+        return output
 
     def yml_comment_decode(self, comment):
         out = ""
