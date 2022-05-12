@@ -1,14 +1,15 @@
-from tkinter import END, Canvas, Scrollbar, Spinbox, Tk, Text, Label, Button, Entry, filedialog, StringVar, Menu, Frame, SUNKEN, W, DISABLED, NORMAL, Toplevel, BooleanVar, IntVar, messagebox, Treeview
+from secrets import choice
+from tkinter import END, Canvas, Scrollbar, Spinbox, Tk, Text, Label, Button, Entry, filedialog, StringVar, Menu, Frame, SUNKEN, W, DISABLED, NORMAL, Toplevel, BooleanVar, IntVar, messagebox
 from tkinter.simpledialog import askstring
 import serial, can, csv, numexpr
-from tkinter.ttk import Combobox
+from tkinter.ttk import Combobox, Treeview
 from functools import partial
 import threading, sys, traceback, time, yaml, serial.tools.list_ports
 from oleomgr import oleomgr
 from oleotree import oleotree
 from source_handler import CandumpHandler, InvalidFrame, CANHandler, SerialHandler, ArdLogHandler
 from recordclass import recordclass
-import cantools
+import cantools, pprint
 
 
 import serial.tools.list_ports
@@ -60,6 +61,119 @@ def make_dict(d_src):
     return out
 
 
+class choice_editor:
+    def __init__(self, window_master, application, signal_editor, user_title, mid, sid, cid):
+        self.master = window_master
+        self.app = application
+        self.mid = mid
+        self.sid = sid
+        self.cid = cid
+        self.sig_editor = signal_editor
+        self.user_title = user_title
+        self.app.log("DCE", "Generate choice editor UI - " + str(user_title))
+        self.createWin()
+
+
+    def createWin(self):
+        '''
+        Create and populate the UI instance
+        '''
+        if not self.created:          
+            self.win = Toplevel(self.master)
+            self.win.wm_title("Edit - " + str(self.user_title))
+            self.win.bind("<Destroy>",self.destroyed)
+
+            info = Label(self.win, text="Add information in the boxes below")
+            info.grid(row=1, column=1, columnspan=1)
+
+            self.lbl = []
+            self.field = []
+            chc = self.app.omgr.messages[self.mid].signals[self.sid].choices[self.cid]
+
+            self.svs["value"] = IntVar(self.cid)
+            self.svs["name"] = StringVar(value=chc.name)
+
+            self.lbl.append(Label(self.win, text="Value"))
+            self.field.append(Entry(self.win, text = self.svs["value"]))
+
+            self.lbl.append(Label(self.win, text="Name"))
+            self.field.append(Entry(self.win, text = self.svs["name"]))
+
+            comment_fields = self.app.omgr.yml_comment_encode(chc.comment)
+
+            self.svs["name_en"] =  StringVar(comment_fields["name_en"])
+            self.svs["comment_en"] = comment_fields["comment_en"]
+            self.svs["comment_fr"] = comment_fields["comment_fr"]
+            self.svs["src"] = comment_fields["src"]
+
+            self.lbl.append(Label(self.win, text="Name (EN)"))
+            self.field.append(Entry(self.win, text = self.svs["name_en"]))
+
+            self.lbl.append(Label(self.win, text="Comment (EN)"))
+            self.comment_field_en = Text(self.win, height=2, width=30)
+            self.field.append(self.comment_field_en)
+            self.field[-1].insert(END, str(self.svs["comment_en"]))
+
+            self.lbl.append(Label(self.win, text="Comment (FR)"))
+            self.comment_field_fr = Text(self.win, height=2, width=30)
+            self.field.append(self.comment_field_fr)
+            self.field[-1].insert(END, str(self.svs["comment_fr"]))
+
+            cnt = 2
+            for lbl in self.lbl:
+                lbl.grid(row = cnt, column = 1)
+                self.field[cnt - 2].grid(sticky="W", row = cnt, column = 2)
+                cnt += 1
+
+            saveclose = Button(self.win, text="Save & Close", command=self.saveclose)
+            saveclose.grid(row=cnt, column=2, columnspan=1)
+            self.win.grid_columnconfigure(1, minsize=120)
+            self.win.grid_columnconfigure(2, minsize=120)
+
+            self.created = 1
+    
+
+
+    def save(self):
+        '''
+        Write modifications to signal definition
+        '''
+        if self.svs["value"].get() != self.cid:
+            self.app.omgr.messages[self.mid].signals[self.sid].choices.pop(self.cid, 0)
+            self.cid = self.svs["value"].get()
+
+        self.app.omgr.messages[self.mid].signals[self.sid].choices[self.cid].name = self.svs["name"].get()
+
+        comments_collection = {}
+        comments_collection["comment_en"] = self.comment_field.get("1.0", "end-1c")
+        comments_collection["comment_fr"] = self.comment_field.get("1.0", "end-1c")
+        comments_collection["name_en"] = self.svs["name_en"].get()
+        comments_collection["src"] = self.svs["src"]            # not user editable, atm
+
+        comments_joined = self.app.omgr.yml_comment_decode(comments_collection)
+
+        self.app.omgr.messages[self.mid].signals[self.sid].choices[self.cid].comment = comments_joined
+
+        self.app.reload_signal_ui()
+        self.sig_editor.reload_choices()
+        
+    
+    def saveclose(self):
+        '''
+        '''
+        self.save()
+        self.win.destroy()
+
+
+    def destroyed(self, *largs):
+        '''
+        Reset the existence pointer
+        '''
+        self.created = 0
+
+    
+
+
 class signal_editor:
     '''
     WINDOW DEFINITION
@@ -75,6 +189,8 @@ class signal_editor:
     active_ref = -1
     active_dic = -1
     created = 0
+
+    choice_editor = None
 
     txt = {}
     lbl = []
@@ -105,7 +221,7 @@ class signal_editor:
 
             self.lbl = []
             self.field = []
-            sig: cantools.database.can.Message = self.app.omgr.messages[self.mid].signals[self.sid]
+            sig: cantools.database.can.Signal = self.app.omgr.messages[self.mid].signals[self.sid]
 
             self.svs["bits"] = StringVar(value=self.app.omgr.yml_bits_encode(sig))
             self.svs["name"] = StringVar(value=sig.name)
@@ -167,13 +283,28 @@ class signal_editor:
             self.field.append(Text(self.win, height=3, width=30))
             self.field[-1].insert(END, str(self.svs["choices"]))
 
-            self.choice_tree = Treeview(self.win)
+            columns = ('Value', 'Name', 'Comment')
+            self.chc_frame = Frame(self.win)
+            self.choice_tree = Treeview(self.chc_frame, columns=columns, show='headings')
+            self.choice_tree.heading('Value', text='Value')
+            self.choice_tree.heading('Name', text='Name')
+            self.choice_tree.heading('Comment', text='Comment')
+            self.choice_tree.pack(side='left', fill='both')
+            self.choice_tree.bind("<Double-1>", self.edit_choice)
+            self.chc_vsb =  Scrollbar(self.chc_frame, orient="vertical", command=self.choice_tree.yview)
+            self.chc_vsb.pack(side='right', fill='y')
+            self.choice_tree.configure(yscrollcommand=self.chc_vsb.set)
+
+            self.reload_choices()
 
             cnt = 2
             for lbl in self.lbl:
                 lbl.grid(row = cnt, column = 1)
                 self.field[cnt - 2].grid(sticky="W", row = cnt, column = 2)
                 cnt += 1
+            
+            self.chc_frame.grid(row=cnt, column=2)
+            cnt += 1
 
             saveopen = Button(self.win, text="Apply", command=self.save)
             saveclose = Button(self.win, text="Save & Close", command=self.saveclose)
@@ -184,6 +315,32 @@ class signal_editor:
 
             self.created = 1
     
+
+    def edit_choice(self, event, *largs):
+        '''
+        Open the signal choice editor
+        '''
+        cid = int(self.choice_tree.identify('item',event.x,event.y))
+        self.choice_editor = choice_editor(self.master, self.app, self.mid, self.sid, cid)
+
+
+    def reload_choices(self):
+        '''
+        Reload the choice list when one gets changed
+        '''
+        choices = self.app.omgr.messages[self.mid].signals[self.sid].choices
+
+        if choices is None:
+            return
+        if len(choices) == 0:
+            return
+
+        self.choice_tree.delete(*self.choice_tree.get_children())
+        pprint.pprint(choices)
+
+        for chc in choices:
+            this_chc = (chc, choices["name"], choices["comment"])
+            self.choice_tree.insert(0, "end", int(chc) + 1, values=this_chc)
 
 
     def save(self):
@@ -226,6 +383,9 @@ class signal_editor:
         Reset the existence pointer
         '''
         self.created = 0
+        if self.choice_editor is not None:
+            if self.choice_editor.created == 1:
+                self.choice_editor.win.destroy()
 
 
 class message_editor:
