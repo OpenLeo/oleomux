@@ -17,11 +17,24 @@ Uses CAN message data compiled from:
 - contributors to autowp.github.io documentation
 - own research
 
+Functionality
+-------------
+- Import DBC format
+- Import and Export YAML format (single message per file, according to OpenLEO standards)
+- Export/generate C structures and parsing code for integration to microcontroller projects
+- Create/edit/delete signals and messages
+- Show live CAN data/calculated values via an Arduino adapter or SocketCAN (on Linux platforms) for debugging and research
+- Play back CAN log files and render calculated values/parameters
+
 Building
 --------
 You'll need some dependencies
 
-> pip3 install cantools pyserial
+> pip3 install cantools pyserial ttkwidgets
+
+For ttkwidgets to work on linux you may need to install
+
+> python3-pil python3-pil.imagetk
 
 On linux you'll also need "python-can" for SocketCAN to work
 

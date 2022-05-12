@@ -1,4 +1,4 @@
-from tkinter import END, Canvas, Scrollbar, Spinbox, Tk, Text, Label, Button, Entry, filedialog, StringVar, Menu, Frame, SUNKEN, W, DISABLED, NORMAL, Toplevel, BooleanVar, IntVar, messagebox
+from tkinter import END, Canvas, Scrollbar, Spinbox, Tk, Text, Label, Button, Entry, filedialog, StringVar, Menu, Frame, SUNKEN, W, DISABLED, NORMAL, Toplevel, BooleanVar, IntVar, messagebox, Treeview
 from tkinter.simpledialog import askstring
 import serial, can, csv, numexpr
 from tkinter.ttk import Combobox
@@ -166,6 +166,8 @@ class signal_editor:
             self.lbl.append(Label(self.win, text="Values"))
             self.field.append(Text(self.win, height=3, width=30))
             self.field[-1].insert(END, str(self.svs["choices"]))
+
+            self.choice_tree = Treeview(self.win)
 
             cnt = 2
             for lbl in self.lbl:
