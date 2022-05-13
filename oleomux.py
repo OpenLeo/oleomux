@@ -1,6 +1,7 @@
 from tkinter import END, Canvas, Scrollbar, Spinbox, Tk, Text, Label, Button, Entry, filedialog, StringVar, Menu, Frame, SUNKEN, W, DISABLED, NORMAL, Toplevel, BooleanVar, IntVar, messagebox
 from tkinter.simpledialog import askstring
 from tkinter.ttk import Combobox, Treeview
+from typing import OrderedDict
 
 from cantools.database.can.signal import NamedSignalValue
 
@@ -235,7 +236,7 @@ class signal_editor:
             self.field = []
             sig: cantools.database.can.Signal = self.app.omgr.messages[self.mid].signals[self.sid]
 
-            self.svs["bits"] = StringVar(value=self.app.omgr.yml_bits_encode(sig))
+            self.svs["bits"] = StringVar(value=self.app.omgr.yml_bits_encode(sig, output_mode = self.app.bit_display_mode))
             self.svs["name"] = StringVar(value=sig.name)
             #self.svs["comment"] = sig.comment
             self.svs["min"] = IntVar(value=sig.minimum)
@@ -363,7 +364,7 @@ class signal_editor:
         '''
         Write modifications to signal definition
         '''
-        start, lng = self.app.omgr.yml_bits_decode(self.svs["bits"].get())
+        start, lng = self.app.omgr.yml_bits_decode(self.svs["bits"].get(), input_mode = self.app.bit_display_mode)
 
         self.app.omgr.messages[self.mid].signals[self.sid].start = start
         self.app.omgr.messages[self.mid].signals[self.sid].length = lng
@@ -575,27 +576,34 @@ class CANDef:
         self.owner = owner
 
         self.strValue = StringVar()
-        self.ref = Entry(self.owner.scrollable_frame, width=8)
-        self.ref.insert(0, self.owner.omgr.yml_bits_encode(self.owner.omgr.messages[mid].signals[sid]))
+        self.ref = Entry(self.owner.scrollable_frame, width=7)
+        self.ref.insert(0, self.owner.omgr.yml_bits_encode(self.owner.omgr.messages[mid].signals[sid], output_mode=self.owner.bit_display_mode))
+        self.ref.configure(disabledbackground="white", disabledforeground="black", state='readonly')
 
         self.name = Entry(self.owner.scrollable_frame)
         self.name.insert(0, self.owner.omgr.messages[mid].signals[sid].name)
+        self.name.configure(state="readonly", disabledbackground="white", disabledforeground="black")
 
-        self.label_en = Entry(self.owner.scrollable_frame)
-        self.label_en.insert(0, self.owner.omgr.get_comment(self.owner.omgr.messages[mid].signals[sid].comment, self.owner.lang))
+        comment_fields = self.owner.omgr.yml_comment_encode(self.owner.omgr.messages[mid].signals[sid].comment)
 
-        self.value = Entry(self.owner.scrollable_frame, textvariable=self.strValue, state='readonly', width=12)
+        self.label_en = Entry(self.owner.scrollable_frame, width=20)
+        self.label_en.insert(0, comment_fields["name_en"])
+        self.label_en.configure(disabledbackground="white", disabledforeground="black", state="readonly")
+
+        self.value = Entry(self.owner.scrollable_frame, textvariable=self.strValue, state='readonly', width=20)
         self.strValue.set("")
 
-        self.unit = Entry(self.owner.scrollable_frame, width=12)
+        self.unit = Entry(self.owner.scrollable_frame, width=12, )
 
         if self.owner.omgr.messages[mid].signals[sid].unit is not None:
             self.unit.insert(0, self.owner.omgr.messages[mid].signals[sid].unit)   
         else:
             self.unit.insert(0, "")   
+        
+        self.unit.configure(disabledbackground="white", disabledforeground="black", state='readonly')
 
-        self.min = Entry(self.owner.scrollable_frame,width=8)
-        self.max = Entry(self.owner.scrollable_frame,width=8)
+        self.min = Entry(self.owner.scrollable_frame, width=8)
+        self.max = Entry(self.owner.scrollable_frame, width=8, state='readonly')
 
         if self.owner.omgr.messages[mid].signals[sid].minimum is not None:
             self.min.insert(0, self.owner.omgr.messages[mid].signals[sid].minimum)   
@@ -606,6 +614,9 @@ class CANDef:
             self.max.insert(0, self.owner.omgr.messages[mid].signals[sid].maximum)   
         else:
             self.max.insert(0, "--")  
+
+        self.min.configure(disabledbackground="white", disabledforeground="black", state='readonly')
+        self.max.configure(disabledbackground="white", disabledforeground="black", state='readonly')
 
         act = partial(self.owner.edit_signal, self.mid, self.sid)
         self.save = Button(self.owner.scrollable_frame, text="[]", command=act)
@@ -669,6 +680,8 @@ class oleomux:
     omgr: oleomgr = None
     lang = "en"
 
+    bit_display_mode = 0
+
 
     def log(self, ma, msg = None):
         if msg is None:
@@ -693,6 +706,10 @@ class oleomux:
         self.omgr.import_from_yaml(file_list)
         self.log("Loaded " + str(len(self.omgr.messages)) + " messages from YAML file")
         self.reload_internal_from_omgr()
+
+    def update_progress(self, item_count, index, *largs):
+        self.status['text'] = "Processing " + str(index) + " / " + str(item_count)
+        self.master.update()
         
 
     def importYAMLfolder(self):
@@ -704,8 +721,9 @@ class oleomux:
         if fd == () or fd is None:
             return
 
-        file_list = [f for f in listdir(fd) if isfile(join(fd, f))]
-        self.omgr.import_from_yaml(file_list)
+        file_list = [(fd + "/" + f) for f in listdir(fd) if isfile(join(fd, f))]
+        self.omgr.import_from_yaml(file_list, callback = partial(self.update_progress, len(file_list)))
+        self.reload_internal_from_omgr()
     
 
     def saveYAMLall(self):
@@ -716,22 +734,53 @@ class oleomux:
         olt = oleotree(self.master, self, self.saveYAMLchosen, "Choose messages or signals to export to YAML")
 
 
-    def saveYAMLchosen(self):
-        pass
+    def saveYAMLchosen(self, results):
+        '''
+        Actually do the export
+        '''
+        if len(results) > 0:
+            fd = filedialog.askdirectory(initialdir = "", 
+                                                    title = "Select a folder to export to")
+            if fd == () or fd is None:
+                return
+
+            result = self.omgr.export_to_yaml(fd, results)
+            if result:
+                messagebox.showinfo(title="OK", message="Export to YAML done!")
+            else:
+                messagebox.showerror(title="Oh no!", message="The export could not be completed.")
+
+        else:
+            messagebox.showwarning(title="Nope", message="No messages selected for export!")
+            return
+
 
     def saveYAMLselected(self):
-        pass
+        '''
+        Export the currently selected message to YAML
+        '''
+        fname = filedialog.asksaveasfile(title = "Choose filename for export to YAML...",
+                                        filetypes = (("YAML files", 
+                                                                    "*.yml*"), 
+                                                                ("all files", 
+                                                                    "*.*"))) 
+        if fname == () or fname == None:
+            return
+
+        result = self.omgr.export_to_yaml(fname.name, self.active_message)
+        if result:
+            messagebox.showinfo(title="OK", message="Export to YAML done!")
+        else:
+            messagebox.showerror(title="Oh no!", message="The export could not be completed.")
 
 
     def exportCaction(self, results):
         '''
         Actually do the export
         '''
-        fname = filedialog.asksaveasfile(title = "Choose filename for export...",
-                                        filetypes = (("C files", 
-                                                                    "*.c*"), 
-                                                                ("all files", 
-                                                                    "*.*"))) 
+        fname = filedialog.asksaveasfile(title = "Choose filename for export to C...",
+                                        filetypes = (("C files", "*.c*"), 
+                                                     ("all files", "*.*"))) 
         if fname == ():
             return
 
@@ -739,7 +788,13 @@ class oleomux:
 
         self.omgr.export_to_struct(h_file, results)
         self.omgr.export_parser_c(h_file, results)
-        messagebox.showinfo(title="OK", message="Export done to " + str(h_file))
+
+        result = True
+
+        if result:
+            messagebox.showinfo(title="OK", message="Export done to " + str(h_file))
+        else:
+            messagebox.showerror(title="Oh no!", message="The export could not be completed.")
         
 
     def exportCoptions(self):
@@ -770,6 +825,11 @@ class oleomux:
         self.reload_internal_from_omgr()
 
     
+    def clean(self):
+        self.omgr.clean()
+        self.reload_internal_from_omgr()
+
+    
     def reload_internal_from_omgr(self):
         '''
         Regenerate combo boxes and internal message
@@ -784,18 +844,32 @@ class oleomux:
             self.message_ints.append(message)
             self.message_names.append(self.omgr.messages[message].name)
 
-        self.messageType['values'] = self.message_names
-        self.messageID['values'] = self.message_ids
+        if len(self.message_names) > 0:
+            self.messageType['values'] = self.message_names
+            self.messageID['values'] = self.message_ids
+        else:
+            self.messageType['values'] = ["Choose..."]
+            self.messageID['values'] = ["Choose..."]
+            
         self.messageType.current(0)
         self.messageID.current(0)
 
-        self.CANChangeMsgType()
-        self.CANChangeFields()
+        if len(self.message_names) > 0:
+            self.CANChangeMsgType()
+            self.CANChangeFields()
+        else:
+            self.CANChangeFields()
+
+    
+    def bit_display_toggle(self, new_mode):
+        self.bit_display_mode = new_mode
+        self.reload_signal_ui()
         
 
     # Init window
     def __init__(self, master):
         self.omgr = oleomgr()
+        self.bit_display_mode = self.omgr.MODE_OLEO
 
         self.active_message = 0
         self.active_message_index = 0
@@ -828,7 +902,7 @@ class oleomux:
         filemenu.add_command(label="Import YAML (folder)", command=self.importYAMLfolder)
         filemenu.add_command(label="Export YAML (multiple)", command=self.saveYAMLall)
         filemenu.add_command(label="Export YAML (only selected)", command=self.saveYAMLselected)
-        filemenu.add_separator()
+        
         filemenu.add_command(label="Export C Code...", command=self.exportCoptions)
         self.menubar.add_cascade(label= "File", underline=0, menu= filemenu)
 
@@ -841,9 +915,19 @@ class oleomux:
         self.bus_is = BooleanVar()
         self.bus_car = BooleanVar()
 
-        #self.menubar.add_command(label="Load CAN Map", command=self.loadCSV)    
-        self.menubar.add_command(label="Load CAN Sim", command=self.loadSim)
+
+        toolsmenu = Menu(self.menubar)
+        #self.menubar.add_command(label="Load CAN Map", command=self.loadCSV)  
+        toolsmenu.add_command(label="Clear loaded messages", command=self.clean)  
+        toolsmenu.add_command(label="Load CAN Sim", command=self.loadSim)
+        toolsmenu.add_separator()
+        self.bit_type = IntVar(master)
+        self.bit_type.set(self.omgr.MODE_OLEO)
+        toolsmenu.add_radiobutton(label="OpenLEO bit numbering", var=self.bit_type, value=self.omgr.MODE_OLEO, command=partial(self.bit_display_toggle, self.omgr.MODE_OLEO))
+        toolsmenu.add_radiobutton(label="Logical bit numbering", var=self.bit_type, value=self.omgr.MODE_CANT, command=partial(self.bit_display_toggle, self.omgr.MODE_CANT))
+
         #self.menubar.add_command(label="Save CAN Map", command=self.saveCSV)
+        self.menubar.add_cascade(label= "Tools", underline=0, menu= toolsmenu)
 
 
         self.com_type = Menu(self.menubar)
@@ -950,7 +1034,7 @@ class oleomux:
             self.lab_bin[x].config(font=("Monospace", 12))
 
         self.canFields = []
-        self.canLabels = ["Bit Pos", "Name", "Comment", "Calc Value", "Unit", "Min", "Max", "Edit", "Delete" ]
+        self.canLabels = ["Bit Pos", "Name", "Name (EN)", "Calc Value", "Unit", "Min", "Max", "Edit", "Delete" ]
         self.cl = []
         y = 1
 
@@ -1257,6 +1341,16 @@ class oleomux:
         Clear the list of fields and create new ones
         '''
 
+        # close editor windows if open
+        if self.win_msg_editor is not None:
+            if self.win_msg_editor.created == 1:
+                self.win_msg_editor.win.destroy()
+        
+        # this will close the choice editor if needed by itself
+        if self.app.win_sig_editor is not None:
+            if self.app.win_sig_editor.created == 1:
+                self.app.win_sig_editor.win.destroy()
+
         # blank out the binary viewer
         for x in range(0,8):
                     self.lab_hex[x]['text'] = "----"
@@ -1268,7 +1362,7 @@ class oleomux:
 
         # make & render the new fields
         signal_id = 0
-        if self.omgr.messages == [] or self.omgr.messages == {}:
+        if self.omgr.messages == [] or self.omgr.messages == {} or self.omgr.messages == OrderedDict():
             return
 
         for signal in self.omgr.messages[self.active_message].signals:
@@ -1322,7 +1416,7 @@ class oleomux:
         result = askstring("New signal", "Enter the bit position of the new signal to continue")
 
         try:
-            start, lng = self.omgr.yml_bits_decode(result)
+            start, lng = self.omgr.yml_bits_decode(result, input_mode = self.bit_display_mode)
         except:
             return False
       
