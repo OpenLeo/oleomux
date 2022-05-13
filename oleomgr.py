@@ -1,5 +1,6 @@
 from typing import OrderedDict
-import yaml, sys, math, cantools, pprint
+import yaml, sys, math, cantools
+from cantools.database.can.signal import NamedSignalValue
 
 '''
 OpenLEO database and CAN message generation scripts
@@ -199,6 +200,10 @@ class oleomgr:
 
         return str(choices)
 
+    
+    def clean(self):
+        self.messages = OrderedDict()
+
 
     def get_comment(self, comment, lang):
         db = self.yml_comment_encode(comment)
@@ -231,9 +236,26 @@ class oleomgr:
             if message.frame_id not in self.messages:
                 self.messages[message.frame_id] = message
 
-        self.messages = OrderedDict(sorted(self.messages.items()))
+        self.check_message_structure()
         
         return True
+
+
+    def check_message_structure(self):
+        '''
+        Do standard checks on the database after import to make sure it conforms to spec
+
+        # re-order to sort by frame ID
+        # force all signal choices to be NamedSignalValue
+        '''
+        self.messages = OrderedDict(sorted(self.messages.items()))
+
+        for message in self.messages:
+            for signal in self.messages[message].signals:
+                if signal.choices != None:
+                    for choice in signal.choices:
+                        if type(signal.choices[choice]) != NamedSignalValue:
+                            signal.choices[choice] = NamedSignalValue(choice, signal.choices[choice], "")
 
 
     def export_to_yaml(self, tree, include_list, comment_src = None):
