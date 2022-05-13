@@ -5,6 +5,7 @@ import serial, can, csv, numexpr
 from tkinter.ttk import Combobox, Treeview
 from functools import partial
 import threading, sys, traceback, time, yaml, serial.tools.list_ports
+from cantools.database.can.signal import NamedSignalValue
 from oleomgr import oleomgr
 from oleotree import oleotree
 from source_handler import CandumpHandler, InvalidFrame, CANHandler, SerialHandler, ArdLogHandler
@@ -62,6 +63,11 @@ def make_dict(d_src):
 
 
 class choice_editor:
+    created = 0
+    svs = {}
+    lbl = []
+    field = []
+
     def __init__(self, window_master, application, signal_editor, user_title, mid, sid, cid):
         self.master = window_master
         self.app = application
@@ -80,7 +86,7 @@ class choice_editor:
         '''
         if not self.created:          
             self.win = Toplevel(self.master)
-            self.win.wm_title("Edit - " + str(self.user_title))
+            self.win.wm_title("Edit signal value - " + str(self.user_title))
             self.win.bind("<Destroy>",self.destroyed)
 
             info = Label(self.win, text="Add information in the boxes below")
@@ -90,32 +96,32 @@ class choice_editor:
             self.field = []
             chc = self.app.omgr.messages[self.mid].signals[self.sid].choices[self.cid]
 
-            self.svs["value"] = IntVar(self.cid)
+            self.svs["value"] = IntVar(value=self.cid)
             self.svs["name"] = StringVar(value=chc.name)
 
             self.lbl.append(Label(self.win, text="Value"))
             self.field.append(Entry(self.win, text = self.svs["value"]))
 
             self.lbl.append(Label(self.win, text="Name"))
-            self.field.append(Entry(self.win, text = self.svs["name"]))
+            self.field.append(Entry(self.win, text = self.svs["name"], width=50))
 
-            comment_fields = self.app.omgr.yml_comment_encode(chc.comment)
+            comment_fields = self.app.omgr.yml_comment_encode(chc.comments)
 
-            self.svs["name_en"] =  StringVar(comment_fields["name_en"])
+            self.svs["name_en"] =  StringVar(value=comment_fields["name_en"])
             self.svs["comment_en"] = comment_fields["comment_en"]
             self.svs["comment_fr"] = comment_fields["comment_fr"]
             self.svs["src"] = comment_fields["src"]
 
             self.lbl.append(Label(self.win, text="Name (EN)"))
-            self.field.append(Entry(self.win, text = self.svs["name_en"]))
+            self.field.append(Entry(self.win, text = self.svs["name_en"], width=50))
 
             self.lbl.append(Label(self.win, text="Comment (EN)"))
-            self.comment_field_en = Text(self.win, height=2, width=30)
+            self.comment_field_en = Text(self.win, height=2, width=50)
             self.field.append(self.comment_field_en)
             self.field[-1].insert(END, str(self.svs["comment_en"]))
 
             self.lbl.append(Label(self.win, text="Comment (FR)"))
-            self.comment_field_fr = Text(self.win, height=2, width=30)
+            self.comment_field_fr = Text(self.win, height=2, width=50)
             self.field.append(self.comment_field_fr)
             self.field[-1].insert(END, str(self.svs["comment_fr"]))
 
@@ -136,23 +142,29 @@ class choice_editor:
 
     def save(self):
         '''
-        Write modifications to signal definition
+        Write modifications to CHOICE definition
         '''
+
+        # make sure the signal choices have a NamedSignalValue type
+        if type(self.app.omgr.messages[self.mid].signals[self.sid].choices[self.cid]) != NamedSignalValue:
+            self.app.omgr.messages[self.mid].signals[self.sid].choices[self.cid] = NamedSignalValue(self.cid, self.app.omgr.messages[self.mid].signals[self.sid].choices[self.cid], "")
+
         if self.svs["value"].get() != self.cid:
             self.app.omgr.messages[self.mid].signals[self.sid].choices.pop(self.cid, 0)
             self.cid = self.svs["value"].get()
+            self.app.omgr.messages[self.mid].signals[self.sid].choices[self.cid] = NamedSignalValue(self.cid, "", "")
 
         self.app.omgr.messages[self.mid].signals[self.sid].choices[self.cid].name = self.svs["name"].get()
 
         comments_collection = {}
-        comments_collection["comment_en"] = self.comment_field.get("1.0", "end-1c")
-        comments_collection["comment_fr"] = self.comment_field.get("1.0", "end-1c")
+        comments_collection["comment_en"] = self.comment_field_en.get("1.0", "end-1c")
+        comments_collection["comment_fr"] = self.comment_field_fr.get("1.0", "end-1c")
         comments_collection["name_en"] = self.svs["name_en"].get()
         comments_collection["src"] = self.svs["src"]            # not user editable, atm
 
         comments_joined = self.app.omgr.yml_comment_decode(comments_collection)
 
-        self.app.omgr.messages[self.mid].signals[self.sid].choices[self.cid].comment = comments_joined
+        self.app.omgr.messages[self.mid].signals[self.sid].choices[self.cid].comments = comments_joined
 
         self.app.reload_signal_ui()
         self.sig_editor.reload_choices()
@@ -213,7 +225,7 @@ class signal_editor:
         '''
         if not self.created:          
             self.win = Toplevel(self.master)
-            self.win.wm_title("Edit - " + str(self.user_title))
+            self.win.wm_title("Edit signal - " + str(self.user_title))
             self.win.bind("<Destroy>",self.destroyed)
 
             info = Label(self.win, text="Add information in the boxes below")
@@ -233,13 +245,12 @@ class signal_editor:
             self.svs["receivers"] = StringVar(value=",".join(sig.receivers))
             self.svs["choices"] = self.app.omgr.txt_choices_encode(sig)
             self.svs["units"] = StringVar(value=sig.unit)
-            #self.svs["receivers"] = StringVar(",".join(msg.receivers))
 
             self.lbl.append(Label(self.win, text="Bits"))
             self.field.append(Entry(self.win, text = self.svs["bits"]))
 
             self.lbl.append(Label(self.win, text="Name"))
-            self.field.append(Entry(self.win, text = self.svs["name"]))
+            self.field.append(Entry(self.win, text = self.svs["name"], width=50))
 
             comment_fields = self.app.omgr.yml_comment_encode(sig.comment)
 
@@ -249,15 +260,15 @@ class signal_editor:
             self.svs["src"] = comment_fields["src"]
 
             self.lbl.append(Label(self.win, text="Name (EN)"))
-            self.field.append(Entry(self.win, text = self.svs["name_en"]))
+            self.field.append(Entry(self.win, text = self.svs["name_en"], width=50))
 
             self.lbl.append(Label(self.win, text="Comment (EN)"))
-            self.comment_field_en = Text(self.win, height=2, width=30)
+            self.comment_field_en = Text(self.win, height=2, width=50)
             self.field.append(self.comment_field_en)
             self.field[-1].insert(END, str(self.svs["comment_en"]))
 
             self.lbl.append(Label(self.win, text="Comment (FR)"))
-            self.comment_field_fr = Text(self.win, height=2, width=30)
+            self.comment_field_fr = Text(self.win, height=2, width=50)
             self.field.append(self.comment_field_fr)
             self.field[-1].insert(END, str(self.svs["comment_fr"]))
 
@@ -277,11 +288,9 @@ class signal_editor:
             self.field.append(Entry(self.win, text = self.svs["units"]))
 
             self.lbl.append(Label(self.win, text="Receivers"))
-            self.field.append(Entry(self.win, text = self.svs["receivers"], state="disabled"))
+            self.field.append(Entry(self.win, text = self.svs["receivers"]))
 
             self.lbl.append(Label(self.win, text="Values"))
-            self.field.append(Text(self.win, height=3, width=30))
-            self.field[-1].insert(END, str(self.svs["choices"]))
 
             columns = ('Value', 'Name', 'Comment')
             self.chc_frame = Frame(self.win)
@@ -289,11 +298,13 @@ class signal_editor:
             self.choice_tree.heading('Value', text='Value')
             self.choice_tree.heading('Name', text='Name')
             self.choice_tree.heading('Comment', text='Comment')
+            self.choice_tree.column('Value', width=60)
             self.choice_tree.pack(side='left', fill='both')
             self.choice_tree.bind("<Double-1>", self.edit_choice)
             self.chc_vsb =  Scrollbar(self.chc_frame, orient="vertical", command=self.choice_tree.yview)
             self.chc_vsb.pack(side='right', fill='y')
             self.choice_tree.configure(yscrollcommand=self.chc_vsb.set)
+            self.field.append(self.chc_frame)
 
             self.reload_choices()
 
@@ -302,8 +313,7 @@ class signal_editor:
                 lbl.grid(row = cnt, column = 1)
                 self.field[cnt - 2].grid(sticky="W", row = cnt, column = 2)
                 cnt += 1
-            
-            self.chc_frame.grid(row=cnt, column=2)
+        
             cnt += 1
 
             saveopen = Button(self.win, text="Apply", command=self.save)
@@ -320,8 +330,11 @@ class signal_editor:
         '''
         Open the signal choice editor
         '''
-        cid = int(self.choice_tree.identify('item',event.x,event.y))
-        self.choice_editor = choice_editor(self.master, self.app, self.mid, self.sid, cid)
+        clicked = self.choice_tree.identify('item',event.x,event.y)
+        if clicked == None or clicked == "":
+            return
+        cid = int(clicked) - 1
+        self.choice_editor = choice_editor(self.master, self.app, self, str(self.app.omgr.messages[self.mid].signals[self.sid].choices[cid]), self.mid, self.sid, cid)
 
 
     def reload_choices(self):
@@ -339,8 +352,12 @@ class signal_editor:
         pprint.pprint(choices)
 
         for chc in choices:
-            this_chc = (chc, choices["name"], choices["comment"])
-            self.choice_tree.insert(0, "end", int(chc) + 1, values=this_chc)
+            if type(choices[chc]) == NamedSignalValue:
+                this_chc = (chc, choices[chc].name, choices[chc].comments)
+            else:
+                this_chc = (chc, choices[chc], "")
+
+            self.choice_tree.insert('', "end", int(chc) + 1, values=this_chc)
 
 
     def save(self):
@@ -354,8 +371,8 @@ class signal_editor:
         self.app.omgr.messages[self.mid].signals[self.sid].name = self.svs["name"].get()
 
         comments_collection = {}
-        comments_collection["comment_en"] = self.comment_field.get("1.0", "end-1c")
-        comments_collection["comment_fr"] = self.comment_field.get("1.0", "end-1c")
+        comments_collection["comment_en"] = self.comment_field_en.get("1.0", "end-1c")
+        comments_collection["comment_fr"] = self.comment_field_fr.get("1.0", "end-1c")
         comments_collection["name_en"] = self.svs["name_en"].get()
         comments_collection["src"] = self.svs["src"]            # not user editable, atm
 
@@ -366,7 +383,7 @@ class signal_editor:
         self.app.omgr.messages[self.mid].signals[self.sid].max = self.svs["max"].get()
         self.app.omgr.messages[self.mid].signals[self.sid].scale = self.svs["factor"].get()
         self.app.omgr.messages[self.mid].signals[self.sid].offset = self.svs["offset"].get()
-        #self.app.omgr.messages[self.mid].signals[self.sid].receivers = self.svs["receivers"].get().split(",")
+        self.app.omgr.messages[self.mid].signals[self.sid].receivers = self.svs["receivers"].get().split(",")
         # self.app.messages[self.mid].signals[self.sid].choices = xx
 
         self.app.reload_signal_ui()
@@ -453,10 +470,25 @@ class message_editor:
             self.lbl.append(Label(self.win, text="Length"))
             self.field.append(Spinbox(self.win, text = self.svs["length"]))
 
-            self.lbl.append(Label(self.win, text="Comment"))
-            self.comment_field = Text(self.win, height=3, width=30)
-            self.field.append(self.comment_field)
-            self.field[-1].insert(END, self.svs["comment"])
+
+            comment_fields = self.app.omgr.yml_comment_encode(msg.comment)
+            self.svs["name_en"] =  StringVar(comment_fields["name_en"])
+            self.svs["comment_en"] = comment_fields["comment_en"]
+            self.svs["comment_fr"] = comment_fields["comment_fr"]
+            self.svs["src"] = comment_fields["src"]
+
+            self.lbl.append(Label(self.win, text="Name (EN)"))
+            self.field.append(Entry(self.win, text = self.svs["name_en"]))
+
+            self.lbl.append(Label(self.win, text="Comment (EN)"))
+            self.comment_field_en = Text(self.win, height=2, width=30)
+            self.field.append(self.comment_field_en)
+            self.field[-1].insert(END, str(self.svs["comment_en"]))
+
+            self.lbl.append(Label(self.win, text="Comment (FR)"))
+            self.comment_field_fr = Text(self.win, height=2, width=30)
+            self.field.append(self.comment_field_fr)
+            self.field[-1].insert(END, str(self.svs["comment_fr"]))
 
             self.lbl.append(Label(self.win, text="Periodicity"))
             self.field.append(Spinbox(self.win, text = self.svs["periodicity"], state="disabled"))
@@ -495,11 +527,20 @@ class message_editor:
 
         self.app.omgr.messages[self.mid].name = self.svs["name"].get()
         self.app.omgr.messages[self.mid].length = self.svs["length"].get()
-        self.app.omgr.messages[self.mid].comment = self.comment_field.get("1.0", "end-1c")
+
+        comments_collection = {}
+        comments_collection["comment_en"] = self.comment_field_en.get("1.0", "end-1c")
+        comments_collection["comment_fr"] = self.comment_field_fr.get("1.0", "end-1c")
+        comments_collection["name_en"] = self.svs["name_en"].get()
+        comments_collection["src"] = self.svs["src"]            # not user editable, atm
+
+        comments_joined = self.app.omgr.yml_comment_decode(comments_collection)
+
+        self.app.omgr.messages[self.mid].comment = comments_joined
         
         # -- TODO: These are missing "setter" functions in cantools upstream
-        #self.app.omgr.messages[self.mid].senders = self.svs["senders"].get().split(",")
-        #self.app.omgr.messages[self.mid].cycle_time = self.svs["periodicity"].get()
+        self.app.omgr.messages[self.mid].senders = self.svs["senders"].get().split(",")
+        self.app.omgr.messages[self.mid].cycle_time = self.svs["periodicity"].get()
 
         self.app.reload_msg_list()
 
