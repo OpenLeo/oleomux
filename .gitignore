@@ -3,3 +3,4 @@ nogit/*
 *.pyc
 *.c
 *.h
+*.yml

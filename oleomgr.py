@@ -1,5 +1,5 @@
 from typing import OrderedDict
-import yaml, sys, math, cantools
+import yaml, sys, math, cantools, pprint
 from cantools.database.can.signal import NamedSignalValue
 
 '''
@@ -38,6 +38,8 @@ class oleomgr:
     TYPE_U32 = "uint32_t"
     TYPE_S32 = "int32_t "
     TAB = "    "
+    MODE_OLEO = 1           # 1.7 1.6 1.5
+    MODE_CANT = 2           # 1.0 1.1 1.2
 
     def __init__(self):
         self.messages = OrderedDict()
@@ -73,57 +75,95 @@ class oleomgr:
 
         return (byte * 8) + (8 - rem)
 
-    def yml_bits_encode(self, signal: cantools.database.can.Signal):
+
+    def yml_bits_encode(self, signal: cantools.database.can.Signal, output_mode=1):
         '''
-        Encode the bits position as 1.0-1.2 etc
-        NOTE: Bytes are NOT zero indexed, but BITS are
+        Convert DBC start + length to OpenLEO byte.bit format
 
         1.7 1.6 1.5 1.4 1.3 1.2 1.1 1.0 2.7 2.6 2.5
         '''
-        byte = math.floor(signal.start / 8)
-        bit = (8 - (signal.start - (byte * 8)) - 1)
-        end_byte = byte
+
+        # the start position is actually the left most bit
+        # + 1 so the division works properly with non zero indexed bytes
+        start_byte = math.ceil((signal.start + 1) / 8)
+        start_bit  = signal.start % 8
 
         if signal.length == 1:
-            return str(byte + 1) + "." + str(bit)
-        
-        else:
-            lng = signal.length - 1
-            if bit + lng < 8:
-                end_byte = byte
-                end_bit = bit + lng
-            else:
-                while(bit + lng >= 8):
-                    end_byte += 1
-                    lng -= 8
-                end_bit = lng
-            
-            return str(byte + 1) + "." + str(bit) + "-" + str(end_byte + 1) + "." + str(end_bit)
+            if output_mode == self.MODE_OLEO:
+                return str(start_byte) + "." + str(start_bit)
+            elif output_mode == self.MODE_CANT:
+                return str(start_byte) + "." + str(7 - start_bit)    
+
+        this_bit = start_bit
+        this_byte = start_byte
+        length_left = signal.length - 1
+
+        while (length_left > 0):
+            this_bit -= 1
+            if this_bit == -1:
+                this_byte += 1
+                this_bit = 7
+            length_left -= 1
+
+        if output_mode == self.MODE_OLEO:
+            return str(start_byte) + "." + str(start_bit) + "-" + str(this_byte) + "." + str(this_bit)
+        elif output_mode == self.MODE_CANT:
+            return str(start_byte) + "." + str(7 - start_bit) + "-" + str(this_byte) + "." + str(7 - this_bit)
 
 
-    def yml_bits_decode(self, bits_str):
+    def yml_bits_decode(self, bits_str, input_mode = 1):
         '''
         Invert the operation above
         '''
         bit_start = 0
         bit_length = 0
 
+
         if "-" in bits_str:
-            start_pos, end_pos = bits_str.split("-")
-            start_byte, start_bit = start_pos.split(".")
-            end_byte, end_bit = end_pos.split(".")
+            try:
+                start_pos, end_pos = bits_str.split("-")
+                start_byte, start_bit = start_pos.split(".")
+                end_byte, end_bit = end_pos.split(".")
+
+                if input_mode == self.MODE_CANT:
+                    start_bit = 7 - start_bit
+                    end_bit = 7 - end_bit
+            except:
+                self.log("Error splitting yml_bits - " + str(bits_str))
+                return False
+
             start_byte = int(start_byte)
             end_byte = int(end_byte)
             start_bit = int(start_bit)
             end_bit = int(end_bit)
-            bit_start = start_byte * 8 - (start_bit + 1)
-            bit_length = ((end_byte - start_byte) * 8) + (end_bit - start_bit) + 1
+            bit_start = ((start_byte - 1) * 8) + (start_bit)
+
+            this_byte = start_byte
+            this_bit = start_bit
+            length_so_far = 1
+            
+            while not (this_byte == end_byte and this_bit == end_bit):
+                this_bit -= 1
+                if this_bit == -1:
+                    this_byte += 1
+                    this_bit = 7
+                length_so_far += 1
+
+                if (this_byte > 8):
+                    self.log("Error calculating length for yml_bits " + str(bits_str))
+                    return False
+            
+            bit_length = length_so_far
 
         else:
             start_byte, start_bit = bits_str.split(".")
             start_byte = int(start_byte)
             start_bit = int(start_bit)
-            bit_start = ((start_byte * 8) - (start_bit + 1))
+
+            if input_mode == self.MODE_CANT:
+                start_bit = 7 - start_bit
+            
+            bit_start = ((start_byte - 1) * 8) + (start_bit)
             bit_length = 1
 
         return bit_start, bit_length
@@ -258,16 +298,40 @@ class oleomgr:
                             signal.choices[choice] = NamedSignalValue(choice, signal.choices[choice], "")
 
 
-    def export_to_yaml(self, tree, include_list, comment_src = None):
+    def export_to_yaml(self, fname, include_list, comment_src = None, callback = None):
         '''
         Export from internal cantools data structure
         to YAML file format
         '''
 
-        yaml_tree = {}
+        mode = 0
 
-        for message in tree:
+        if type(include_list) == int:
+            # fname is a full file path
+            # if a given message ID is set to 1 instead of a list, it will 
+            # export every signal in the message
+            include_list = { include_list : 1 }
+            mode = 0
+
+            fname = str(fname)
+
+            try:
+                if fname.split(".")[-1] != ".yml":
+                    fname = fname + ".yml"
+            except:
+                fname = fname + ".yml"
+        else:
+            # fname is a FOLDER path
+            mode = 1
+
+        ctr = 1
+ 
+        for mid in self.messages:
+            message = self.messages[mid]
+            yaml_tree = {}
+
             if message.frame_id not in include_list:
+                ctr += 1
                 continue
 
             receivers = []
@@ -285,7 +349,17 @@ class oleomgr:
 
             id = message.frame_id
 
+            signal_offset = 0
             for signal in message.signals:
+                if include_list is not None:
+                    if message.frame_id not in include_list:
+                        continue
+                    else:
+                        if type(include_list[message.frame_id]) == list:
+                            if signal_offset not in include_list[message.frame_id]:
+                                continue
+                signal_offset += 1
+
                 choices_clean = None
                 if signal.choices is not None:
                     choices_clean = {}
@@ -312,16 +386,33 @@ class oleomgr:
             yaml_tree[id]["receivers"] = receivers
 
             #pprint.pprint(yaml.dump(yaml_tree[0xF6]))
-            f = open("messages/" + self.to_hex(message.frame_id) + ".yml", "w")
-            yaml.dump(yaml_tree[message.frame_id], f)
-            f.close()
+            if mode == 0:
+                f = open(fname, "w")
+                self.log("Exporting yaml " + str(self.to_hex(message.frame_id)))
+                yaml.dump(yaml_tree[message.frame_id], f)
+                f.close()
+                return True
+            
+            else:
+                self.log("Exporting yaml " + str(self.to_hex(message.frame_id)))
+                f = open(fname + "/" + self.to_hex(message.frame_id) + ".yml", "w")
+                yaml.dump(yaml_tree[message.frame_id], f)
+                f.close()
+
+            if callback is not None:
+                callback(ctr)
+
+            ctr += 1
+        
+        return True
 
 
-    def import_from_yaml(self, file_list):
+    def import_from_yaml(self, file_list, callback = None):
         '''
         Import from YAML to internal cantools data structure
         '''
         tree = {}
+        ctr = 1
 
         for file_name in file_list:
             try:
@@ -342,7 +433,12 @@ class oleomgr:
                 self.log("Missing SIGNAL definitions for message " + str(file_name))
             
             for signal in msg["signals"]:
-                bit_start, bit_length = self.yml_bits_decode(msg["signals"][signal]["bits"])
+                result = self.yml_bits_decode(msg["signals"][signal]["bits"])
+                if not result:
+                    continue
+
+                bit_start, bit_length = result
+
                 msg_signals.append(
                     cantools.database.can.Signal(
                         name = signal,
@@ -354,14 +450,14 @@ class oleomgr:
                         minimum = msg["signals"][signal]["min"],
                         maximum = msg["signals"][signal]["max"],
                         unit = msg["signals"][signal]["units"],
-                        choices = msg["signals"][signal]["choices"],
+                        choices = msg["signals"][signal]["values"],
                         receivers = msg["receivers"],
                         comment = self.yml_comment_decode(msg["signals"][signal]["comment"])
                     )
                 )
 
             tree[int(msg["id"], 16)] = cantools.database.can.Message(
-                #strict = False,
+                strict = False,
                 frame_id = int(msg["id"], 16),
                 is_extended_frame = False,
                 name = msg["name"],
@@ -372,11 +468,25 @@ class oleomgr:
                 cycle_time = msg["periodicity"]
             )
 
+            if callback is not None:
+                callback(ctr)
+
+            ctr += 1
+
+        self.ignored_messages = 0
+        self.added_messages = 0
+
         for message in tree:
             if message not in self.messages:
+                self.added_messages += 1
                 self.messages[message] = tree[message]
+            else:
+                self.ignored_messages += 1
+        
+        self.log("Imported " + str(self.added_messages) + " messages, " + str(self.ignored_messages) + " messages already exist and were skipped")
 
         if len(self.messages) > 0:
+            self.check_message_structure()
             return True
         else:
             return False
