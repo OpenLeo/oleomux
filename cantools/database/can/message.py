@@ -418,6 +418,10 @@ class Message(object):
 
         return self._senders
 
+    @senders.setter
+    def senders(self, value):
+        self._senders = value
+
     @property
     def send_type(self) -> Optional[str]:
         """The message send type, or ``None`` if unavailable.
@@ -433,6 +437,10 @@ class Message(object):
         """
 
         return self._cycle_time
+
+    @cycle_time.setter
+    def cycle_time(self, value):
+        self._cycle_time = value
 
     @property
     def dbc(self) -> Optional['DbcSpecifics']:

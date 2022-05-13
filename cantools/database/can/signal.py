@@ -3,7 +3,6 @@ import decimal
 from typing import Optional, Dict, TYPE_CHECKING, List, Any, Union
 
 from cantools.typechecking import Comments
-from cantools.database.can.sigchoice import sigchoice
 
 if TYPE_CHECKING:
     from collections import OrderedDict
@@ -107,12 +106,20 @@ class NamedSignalValue(object):
 
         return self._name
 
+    @name.setter
+    def name(self, value):
+        self._name = value
+
     @property
     def value(self) -> int:
         """The integer value that gets mapped
         """
 
         return self._value
+    
+    @value.setter
+    def value(self, value):
+        self._value = value
 
     @property
     def comments(self) -> Dict[str, str]:
@@ -132,6 +139,10 @@ class NamedSignalValue(object):
         """
 
         return self._comments
+    
+    @comments.setter
+    def comments(self, value):
+        self._comments = value
 
     def __str__(self) -> str:
         return f"{self._name}"
@@ -200,7 +211,7 @@ class Signal(object):
                  minimum: Optional[float] = None,
                  maximum: Optional[float] = None,
                  unit: Optional[str] = None,
-                 choices: Optional["OrderedDict[sigchoice]"] = None,
+                 choices: Optional["OrderedDict[int, NamedSignalValue]"] = None,
                  dbc_specifics: Optional["DbcSpecifics"] = None,
                  comment: Optional[Union[str, Comments]] = None,
                  receivers: Optional[List[str]] = None,
@@ -421,7 +432,7 @@ class Signal(object):
         self._unit = value
 
     @property
-    def choices(self) -> Optional["OrderedDict[sigchoice]"]:
+    def choices(self) -> Optional["OrderedDict[int, NamedSignalValue]"]:
         """A dictionary mapping signal values to enumerated choices, or
         ``None`` if unavailable.
 
@@ -485,6 +496,10 @@ class Signal(object):
 
         return self._receivers
 
+    @receivers.setter
+    def receivers(self, value):
+        self._receivers = value
+
     @property
     def is_multiplexer(self) -> bool:
         """``True`` if this is the multiplexer signal in a message, ``False``
@@ -541,8 +556,8 @@ class Signal(object):
         if self.choices is None:
             return None
 
-        for choice_number in self.choices:
-            if str(self.choices[choice_number]) == str(string):
+        for choice_number, choice_value in self.choices.items():
+            if str(choice_value) == str(string):
                 return choice_number
 
         return None
@@ -551,10 +566,9 @@ class Signal(object):
         if self._choices is None:
             choices = None
         else:
-            pass
-            #choices = '{{{}}}'.format(', '.join(
-            #    ["{}: '{}'".format(value, text)
-            #     for value, text in self._choices.items()]))
+            choices = '{{{}}}'.format(', '.join(
+                ["{}: '{}'".format(value, text)
+                 for value, text in self._choices.items()]))
 
         return "signal('{}', {}, {}, '{}', {}, {}, {}, {}, {}, {}, '{}', {}, {}, {}, {}, {})".format(
             self._name,
