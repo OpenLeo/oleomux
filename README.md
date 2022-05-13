@@ -26,6 +26,19 @@ Functionality
 - Show live CAN data/calculated values via an Arduino adapter or SocketCAN (on Linux platforms) for debugging and research
 - Play back CAN log files and render calculated values/parameters
 
+An important note on bit ordering
+---------------------------------
+- All OpenLEO signals and messages are BIG ENDIAN.
+- Message bytes are indexed from 1
+- Message bits are indexed from 0
+- The DBC format uses the bit numbering: [ 7 6 5 4 3 2 1 0 ] [ 15 14 13 12 11 10 9 8 ]
+- The OpenLEO / PSA notation uses: [ 1.7 1.6 1.5 1.4 1.3 1.2 1.1 1.0 ] [ 2.7 2.6 2.5 2.4 2.3 2.2 2.1 2.0 ]. This is what Oleomux uses by default for display purposes, and it is the format used by the YAML data structure. Signals greater than one bit in length use the notation 1.0-2.7 (which would be 2 bits long)
+
+Oleomux ALSO offers the option to display and edit the signals using the alternative bit ordering [ 1.0 1.1 1.2 1.3 1.4 1.5 1.6 1.7 ] [ 2.0 2.1 2.2 2.3 2.4 2.5 2.6 2.7 ]. 
+- You can choose this at any time using Tools > Logical bit numbering and switch back to default using Tools > OpenLEO bit numbering
+- This DOES NOT change the way data is stored or formatted outside of the software - all it does is make it a bit easier (for me anyway) to interpret the bits being used by a signal in the UI
+- If you don't understand what this means, use the OpenLEO notation for now
+
 Building
 --------
 You'll need some dependencies

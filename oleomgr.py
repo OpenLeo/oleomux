@@ -316,7 +316,7 @@ class oleomgr:
             fname = str(fname)
 
             try:
-                if fname.split(".")[-1] != ".yml":
+                if fname.split(".")[-1] != "yml":
                     fname = fname + ".yml"
             except:
                 fname = fname + ".yml"

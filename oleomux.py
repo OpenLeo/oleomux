@@ -1347,9 +1347,9 @@ class oleomux:
                 self.win_msg_editor.win.destroy()
         
         # this will close the choice editor if needed by itself
-        if self.app.win_sig_editor is not None:
-            if self.app.win_sig_editor.created == 1:
-                self.app.win_sig_editor.win.destroy()
+        if self.win_sig_editor is not None:
+            if self.win_sig_editor.created == 1:
+                self.win_sig_editor.win.destroy()
 
         # blank out the binary viewer
         for x in range(0,8):
