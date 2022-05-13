@@ -1,19 +1,19 @@
-from secrets import choice
 from tkinter import END, Canvas, Scrollbar, Spinbox, Tk, Text, Label, Button, Entry, filedialog, StringVar, Menu, Frame, SUNKEN, W, DISABLED, NORMAL, Toplevel, BooleanVar, IntVar, messagebox
 from tkinter.simpledialog import askstring
-import serial, can, csv, numexpr
 from tkinter.ttk import Combobox, Treeview
-from functools import partial
-import threading, sys, traceback, time, yaml, serial.tools.list_ports
+
 from cantools.database.can.signal import NamedSignalValue
-from oleomgr import oleomgr
-from oleotree import oleotree
+
 from source_handler import CandumpHandler, InvalidFrame, CANHandler, SerialHandler, ArdLogHandler
 from recordclass import recordclass
-import cantools, pprint
 
+from functools import partial
+import cantools, pprint, serial, can, csv, numexpr, threading, sys, traceback, time, serial.tools.list_ports
+from os import listdir
+from os.path import isfile, join
 
-import serial.tools.list_ports
+from oleomgr import oleomgr
+from oleotree import oleotree
 
 #   ###########################################################################
 #
@@ -349,7 +349,6 @@ class signal_editor:
             return
 
         self.choice_tree.delete(*self.choice_tree.get_children())
-        pprint.pprint(choices)
 
         for chc in choices:
             if type(choices[chc]) == NamedSignalValue:
@@ -700,14 +699,12 @@ class oleomux:
         '''
         Import all YAML files in a chosen folder
         '''
-        f = filedialog.askdirectory(initialdir = "", 
+        fd = filedialog.askdirectory(initialdir = "", 
                                                     title = "Select a folder of YAML definitions")
-        if f == ():
+        if fd == () or fd is None:
             return
-        
-        return
 
-        file_list = [f]
+        file_list = [f for f in listdir(fd) if isfile(join(fd, f))]
         self.omgr.import_from_yaml(file_list)
     
 
@@ -716,10 +713,15 @@ class oleomux:
         Show a tickbox view of all the loaded messages
         to choose which ones to export to YAML (or all)
         '''
+        olt = oleotree(self.master, self, self.saveYAMLchosen, "Choose messages or signals to export to YAML")
+
+
+    def saveYAMLchosen(self):
         pass
 
     def saveYAMLselected(self):
         pass
+
 
     def exportCaction(self, results):
         '''
@@ -745,7 +747,7 @@ class oleomux:
         Show a tickbox view of all the loaded messages
         to choose which ones to export to C
         '''
-        olt = oleotree(self.master, self, self.exportCaction)
+        olt = oleotree(self.master, self, self.exportCaction, "Choose messages or signals to export to C")
         
 
     def importDBC(self):

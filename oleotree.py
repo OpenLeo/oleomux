@@ -7,7 +7,7 @@ class oleotree:
     select_all = False
     callback = None
     
-    def __init__(self, master, owner, callback):
+    def __init__(self, master, owner, callback, title = "Choose which to export"):
         self.owner = owner
         self.master = master
         self.callback = callback
@@ -16,7 +16,7 @@ class oleotree:
             return
 
         self.win = Toplevel(master)
-        self.win.wm_title("Message tree for export")
+        self.win.wm_title(title)
         self.win.bind("<Destroy>",self.destroyed)
         self.win.geometry("400x500")
 
