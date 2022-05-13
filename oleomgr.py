@@ -1,3 +1,4 @@
+from typing import OrderedDict
 import yaml, sys, math, cantools, pprint
 
 '''
@@ -38,7 +39,7 @@ class oleomgr:
     TAB = "    "
 
     def __init__(self):
-        self.messages = {}
+        self.messages = OrderedDict()
 
     def log(self, msg):
         print("[LOG] " + str(msg))
@@ -229,6 +230,8 @@ class oleomgr:
         for message in db.messages:
             if message.frame_id not in self.messages:
                 self.messages[message.frame_id] = message
+
+        self.messages = OrderedDict(sorted(self.messages.items()))
         
         return True
 
