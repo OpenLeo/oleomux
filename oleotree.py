@@ -101,6 +101,8 @@ class oleotree:
                         results[msg_id] = []
                     results[msg_id].append(self.indexes[int(item_c)][1])
 
+        self.win.destroy()
+
         if self.callback is not None:
             self.callback(results)
 
