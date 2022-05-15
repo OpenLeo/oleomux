@@ -69,6 +69,16 @@ Databases
 ---------
 Databases included in the repository are compiled from publicly available information, including clean-room reverse engineered signal definitions. As such, there may be errors or inconsistencies in the data and it is YOUR responsibility as the end user to ensure the information gathered is accurate, correct or otherwise suitable for the purpose you will use it for. NO WARRANTY IS PROVIDED WITH THIS SOFTWARE, AND WE DISCLAIM ALL RESPONSIBILITY FOR ANY LOSS OR DAMAGE INCURRED AS A RESULT OF USING THE SOFTWARE AND/OR ASSOCIATED DATA!
 
+
+Main functionality todo list
+----------------------------
+
+- Fix bug causing live data to no longer show up in some situations?
+- Filter messages by sender and receiver?
+- Test and fix arduino/socketcan simulations
+- More translations and sync up with PSA-RE
+
+
 Issues
 ------
 This software is still under development, and you may find issues. Please report them using the issue tracker with as much information as possible (log file included please!)

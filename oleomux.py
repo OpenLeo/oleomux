@@ -682,6 +682,15 @@ class oleomux:
 
     bit_display_mode = 0
 
+    overview_cmbs_messages = []
+    overview_cmbs_signals = []
+    overview_output_textboxs = []
+    overview_output_svars = []
+    overview_unit_svars = []
+    overview_messages_subscribed = []
+    overview_selected_signal = []
+    overview_unit_textboxs = []
+
 
     def log(self, ma, msg = None):
         if msg is None:
@@ -884,7 +893,6 @@ class oleomux:
         self.hexIDcurrent = 0
         self.simDelayMs =  1
         self.sim_ok = False
-        self.winViewUpdates = []
         self.reading_thread = None
 
         self.win_msg_editor = None
@@ -1375,6 +1383,7 @@ class oleomux:
         Generate the list of comboboxes from the internal databases
         '''
         self.reload_internal_from_omgr()
+        self.winViewUpdateCmbMessages()
         self.reload_signal_ui()
 
 
@@ -1450,7 +1459,7 @@ class oleomux:
         start = self.omgr.endian_translate(start)
         f = ""
         for x in range(start, start+length):
-            print(x, len(can))
+            #print(x, len(can))
             f = f + str(can[x])
         return int(f, 2)
 
@@ -1823,65 +1832,155 @@ class oleomux:
         if len(self.omgr.messages) == 0:
             return
 
-        z = len(self.winViewCmb)
-        cmb = Combobox(self.winView, values=['Choose...'], width=40)
-        cmb.grid(row=z+2, column=1)
-        self.winViewCmb.append(cmb)
-        self.winViewValues.append(StringVar())
-        rx = []
-        items = []
-        ref = 0
-        ry = 0
-        for message in self.omgr.messages:
-            pass
-            #for y in message:
-            #    items.append(self.messageType['values'][ref] + " - " + y["desc"])
-            #    rz = []
-            #    rz.append(ref)
-            #    rz.append(ry)
-            #    rx.append(rz)
-            #    ry = ry + 1
-            #ef = ref + 1
-            #ry = 0
-        self.winViewCmb[z]['values'] = items
-        self.winViewEntries.append(Entry(self.winView, textvariable=self.winViewValues[z], state='readonly'))
-        self.winViewEntries[z].grid(column=2, row=z+2)
-        self.winViewCmb[z].current(0)
-        #scmb = partial(self.winViewChangeType, z)
-        #self.winViewCmb[z].bind("<<ComboboxSelected>>", scmb)
-        self.winViewUpdates = rx
+        z = len(self.overview_cmbs_messages)
+        cmb = Combobox(self.winView, values=['Choose...'], width=35)
+        cmb.grid(row=z+2, column=0)
+
+        self.overview_cmbs_messages.append(cmb)
+
+        cmb_sig = Combobox(self.winView, values=['Choose...'], width=35)
+        cmb_sig.grid(row=z+2, column=1)
+
+        self.overview_selected_signal.append(-1)
+
+        self.overview_cmbs_signals.append(cmb_sig)
+        self.overview_output_svars.append(StringVar())
+        self.overview_unit_svars.append(StringVar())
+
+        self.overview_output_textboxs.append(Entry(self.winView, textvariable=self.overview_output_svars[z], state='readonly', width=30))
+        self.overview_unit_textboxs.append(Entry(self.winView, textvariable=self.overview_unit_svars[z], state='readonly', width=10))
+
+        self.overview_output_textboxs[z].grid(column=2, row=z+2)
+        self.overview_unit_textboxs[z].grid(column=3, row=z+2)
+        self.overview_cmbs_messages[z].current(0)
+        self.overview_cmbs_signals[z].current(0)
+
+        self.overview_cmbs_messages[z].bind("<<ComboboxSelected>>", partial(self.overview_update_cmbs_signals, z))
+        self.overview_cmbs_signals[z].bind("<<ComboboxSelected>>", partial(self.winViewUpdateSignals, z))
+        self.overview_messages_subscribed.append(-1)
     
-        for x in range(1, z+2):
+        for x in range(1, z + 2):
             self.winView.grid_rowconfigure(x, minsize=25)
+        
+        self.winViewUpdateCmbMessages()
+        self.overview_update_cmbs_signals(z)
+
+
+    def winViewUpdateCmbMessages(self):
+        '''
+        Update the combo boxes to reflect contents
+        of main window combo boxes
+        '''
+        items = []
+        i = 0
+        offset = -1
+        j = 0
+        for cmb in self.overview_cmbs_messages:
+            # save the user selection
+            active_index = cmb.current()
+            current_frame_id = self.message_ids[active_index]
+
+            j = 0
+            offset = -1
+
+            if len(self.omgr.messages) > 0:
+                for message in self.omgr.messages:
+                    # the index will match with message index in the main view, so we don't need to store separately here
+                    if current_frame_id == message:
+                        offset = j
+                    items.append(self.omgr.to_hex(message) + " - " + self.omgr.messages[message].name)
+                    j += 1
+
+            if len(items) > 0:    
+                cmb['values'] = items
+            else:
+                cmb['values'] = ["Choose..."]
+            
+            # restore the users selection
+            if offset != -1:
+                # this will trigger the signal update 
+                cmb.current(offset)
+            else:
+                # deleted message
+                cmb.current(0)
+
+            i += 1
+
+    
+    def overview_update_cmbs_signals(self, row, *largs):
+        '''
+        Update the signal list of combobox row
+        because the chosen message changed
+        '''
+        
+        if row > len(self.overview_cmbs_signals):
+            return
+        
+        active_index = self.overview_cmbs_messages[row].current()
+        current_frame_id = self.message_ints[active_index]
+
+        if current_frame_id not in self.omgr.messages:
+            self.log("Invalid frame ID for overview - d" + str(current_frame_id))
+            return
+        
+        items = []
+        for signal in self.omgr.messages[current_frame_id].signals:
+            items.append(signal.name)
+        
+        if len(items) > 0:
+            self.overview_cmbs_signals[row]["values"] = items
+        else:
+            self.overview_cmbs_signals[row]['values'] = ["Choose..."]
+
+        self.overview_cmbs_signals[row].current(0)
+        self.overview_messages_subscribed[row] = self.message_ids[active_index]
+
+        self.winViewUpdateSignals(row)
+
+    
+    def winViewUpdateSignals(self, row, *largs):
+        '''
+        Handle the user changing the dropdown for which signal to view
+        '''
+        self.overview_selected_signal[row] = self.overview_cmbs_signals[row].current()
+        self.overview_output_svars[row].set("")
+
+        self.active_message = self.message_ints [ self.overview_cmbs_messages[row].current() ]
+        signal = self.omgr.messages[self.active_message].signals[self.overview_selected_signal[row]]
+        self.overview_unit_svars[row].set(str(signal.unit))
+
 
     def winViewUpdateFields(self):   
-        for ref in range(0, len(self.winViewCmb)):
-            loc = self.winViewUpdates[self.winViewCmb[ref].current()]
-            cdef = self.messages[loc[0]][loc[1]]
-            print(loc)
-            if "hex" in cdef:
-                #print("[WVW] Updating " + str(cdef["hex"]) + " with " + str(cdef["desc"]))
-                hexID = cdef["hex"]
-                if hexID in can_messages:
-                    msg = can_messages[hexID]
-                    self.winViewValues[ref].set(self.can_to_formatted(msg, loc[1], loc[0]))
-            else:
-                print(cdef)
+        '''
+        Update all the values displayed in the window
+        '''
+        ctr = 0
+        for row in self.overview_messages_subscribed:
+            if row == -1:
+                # message not been set yet
+                continue
+            
+            if row in can_messages:
+                msg = can_messages[row]
+                self.overview_output_svars[ctr].set(self.can_to_formatted(msg, int(row, 16), self.overview_selected_signal[ctr]))
+            
+            ctr += 1
+
 
     def overViewDestroyed(self, x):
         self.winView = None
+
 
     def createOverview(self):
         if not isinstance(self.winView, Toplevel):             
             self.winView = Toplevel(self.master)
             self.winView.wm_title("CANerview")
             self.winView.bind("<Destroy>",self.overViewDestroyed)
-            self.winViewCmb = []
-            self.winViewEntries = []
-            self.winViewValues = []
-            self.winViewUpdates = []
-            info = Label(self.winView, text="New defs added in the main view will require a restart to take effect")
-            info.grid(row=1, column=1, columnspan=1)
+
+    
+            info = Label(self.winView, text="Combined signal view - choose message and then from available signals")
+            info.grid(row=1, column=0, columnspan=2)
+
             addCmb = self.winView.register(self.addwinViewRow)
             create = Button(self.winView, text="Add +", command=addCmb)
             create.grid(row=1, column=2, columnspan=1)
@@ -1918,7 +2017,7 @@ def reading_loop(source_handler):
         while not stop_reading.is_set():
             try:
                 frame_id, data = source_handler.get_message()
-                print(frame_id)
+                #print(frame_id)
             except InvalidFrame:
                 print("[CAN] Invalid frame encountered")
                 continue
