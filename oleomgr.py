@@ -1,5 +1,5 @@
 from typing import OrderedDict
-import yaml, sys, math, cantools, pprint
+import yaml, sys, math, cantools, pprint, copy
 from cantools.database.can.signal import NamedSignalValue
 
 '''
@@ -278,6 +278,48 @@ class oleomgr:
 
         self.check_message_structure()
         
+        return True
+
+
+    def export_to_dbc(self, fname, include_list):
+        '''
+        Export messages as DBC database to fname
+        filter messages/signals as given by chosen
+        '''
+        messages_export = []
+        ctr = 0
+
+        fname = str(fname)
+        try:
+            if fname.split(".")[-1] != "dbc":
+                fname = fname + ".dbc"
+        except:
+            fname = fname + ".dbc"
+
+        for mid in self.messages:
+            message = self.messages[mid]
+
+            if message.frame_id not in include_list:
+                ctr += 1
+                continue
+            
+            signal_export = []
+            signal_offset = 0
+            for signal in message.signals:
+                if type(include_list[message.frame_id]) == list:
+                    if signal_offset in include_list[message.frame_id]:
+                        signal_export.append(signal)
+                else:
+                    signal_export.append(signal)
+                signal_offset += 1
+            
+            messages_export.append(message)
+            messages_export[-1].signals = signal_export
+        
+        db = cantools.database.can.Database(messages = messages_export, strict=False)
+        # todo - check endianness
+        cantools.database.dump_file(db, fname, 'dbc', encoding = 'utf-8')
+
         return True
 
 

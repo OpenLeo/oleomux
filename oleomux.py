@@ -156,7 +156,7 @@ class oleomux:
 
     def saveYAMLchosen(self, results):
         '''
-        Actually do the export
+        Actually do the export to YAML folder/files
         '''
         if len(results) > 0:
             fd = filedialog.askdirectory(initialdir = "", 
@@ -243,6 +243,35 @@ class oleomux:
             return
         self.log("Loaded " + str(len(self.omgr.messages)) + " messages from DBC file")
         self.reload_internal_from_omgr()
+
+
+    def exportDBC(self):
+        '''
+        Export a DBC
+        '''
+        olt = oleotree(self.master, self, self.exportDBCchosen, "Choose messages or signals to export to DBC")
+
+    
+    def exportDBCchosen(self, results):
+        '''
+        Actually do the export to DBC file
+        '''
+        if len(results) > 0:
+            fname = filedialog.asksaveasfile(title = "Choose filename for export to DBC...",
+                                        filetypes = (("CAN database format", "*.dbc*"), 
+                                                     ("all files", "*.*"))) 
+            if fname == ():
+                return
+
+            result = self.omgr.export_to_dbc(fname.name, results)
+            if result:
+                messagebox.showinfo(title="OK", message="Export to DBC done!")
+            else:
+                messagebox.showerror(title="Oh no!", message="The export to DBC could not be completed.")
+
+        else:
+            messagebox.showwarning(title="Nope", message="No messages selected for export!")
+            return
 
     
     def clean(self):
@@ -368,6 +397,7 @@ class oleomux:
         filemenu = Menu(self.menubar)
 
         filemenu.add_command(label="Import DBC", command=self.importDBC)
+        filemenu.add_command(label="Export DBC", command=self.exportDBC)
         filemenu.add_separator()
         filemenu.add_command(label="Import YAML (file)", command=self.importYAMLfile)
         filemenu.add_command(label="Import YAML (folder)", command=self.importYAMLfolder)

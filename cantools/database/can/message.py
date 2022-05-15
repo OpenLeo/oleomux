@@ -326,6 +326,11 @@ class Message(object):
 
         return self._signals
 
+    @signals.setter
+    def signals(self, value):
+        self._signals = value
+        
+
     @property
     def is_container(self) -> bool:
         """Returns if the message is a container message
