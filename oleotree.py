@@ -13,11 +13,14 @@ class oleotree:
     '''
     select_all = False
     callback = None
+    tree_type = "signal"
     
     def __init__(self, master, owner, callback, title = "Choose which to export", tree_type="signal"):
         self.owner = owner
         self.master = master
         self.callback = callback
+        self.tree_type = tree_type
+        self.items = []
 
         if len(self.owner.omgr.messages) == 0:
             return
@@ -89,11 +92,12 @@ class oleotree:
                 ctr += 1
             self.item_count = ctr
             self.message_count = len(items) - 1
+            self.items = items
 
         frame_a = Frame(self.win)
         self.select_button = Button(frame_a, text="Select all", command=self.toggle_select)
         self.select_button.grid(row=1, column = 0)
-        self.go_button = Button(frame_a, text="Export...", command=self.action_button)
+        self.go_button = Button(frame_a, text="Continue...", command=self.action_button)
         self.go_button.grid(row=1, column=1)
         frame_a.grid(row=2, column=0, sticky="nesw")
 
@@ -121,20 +125,27 @@ class oleotree:
     def action_button(self):
         '''
         '''
-        results = {}
         msg_id = None
 
-        for item in self.t.get_children():
-            msg_id = self.indexes[int(item)][0]
+        if self.tree_type == "signal":
+            results = {}
 
-            if self.t.tag_has("checked", item):
-                results[msg_id] = []
-            
-            for item_c in self.t.get_children(item):
-                if self.t.tag_has("checked", item_c):
-                    if msg_id not in results:
-                        results[msg_id] = []
-                    results[msg_id].append(self.indexes[int(item_c)][1])
+            for item in self.t.get_children():
+                msg_id = self.indexes[int(item)][0]
+
+                if self.t.tag_has("checked", item):
+                    results[msg_id] = []
+                
+                for item_c in self.t.get_children(item):
+                    if self.t.tag_has("checked", item_c):
+                        if msg_id not in results:
+                            results[msg_id] = []
+                        results[msg_id].append(self.indexes[int(item_c)][1])
+        else:
+            results = []
+            for item in self.t.get_children():
+                if self.t.tag_has("checked", item):
+                    results.append(self.items[int(item)-1])
 
         self.win.destroy()
 
