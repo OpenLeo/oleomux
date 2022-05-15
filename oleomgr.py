@@ -4,26 +4,13 @@ from cantools.database.can.signal import NamedSignalValue
 
 '''
 OpenLEO database and CAN message generation scripts
+Copyright (c) 2022 - OpenLEO.org / lorddevereux
 
 - Import DBC
 - Import/Export yaml message definitions 
 - Export C code
 - Import/merge message and signal translations
 - Export database information for manual use
-'''
-
-help_text = '''
-OPENLEO CAN standards management utility v1.0
-----------------------------------------------
-Copyright (c) 2022 - OpenLEO.org
-
-usage:  openleo-mgr NETWORK_FOLDER <options> -m=MESSAGE_LIST
-
--c      generate C parsing code
--s      generate structs
--m      generate only the messages in MESSAGE_LIST file
-        see docs for syntax
-
 '''
 
 
@@ -687,26 +674,4 @@ class oleomgr:
         for message in tree:
             for signal in message.signals:
                 print(self.to_hex(message.frame_id) + "," + message.name + "," + signal.name)
-
-
-# when running as a CLI app:
-
-if __name__ == "__main__":
-
-    if len(sys.argv) > 1:
-        if sys.argv[1] == "--help":
-            print(help_text)
-            sys.exit()
-
-    db = cantools.database.load_file('B9R_CONF_AEE07.dbc', strict=False, encoding = 'utf-8')
-
-    inc_list = [ 0x36, 0xF6, 268, 296 ]
-    #cmr.export_to_struct(db.messages, inc_list)
-
-    #cmr.export_parser_c(db.messages, inc_list)
-
-    #pprint.pprint(db.messages[0].signals)
-
-    cmr.export_to_yaml(db.messages, inc_list, comment_src="AEE07-B9R")
-    #cmr.import_from_yaml(file_list)
 
