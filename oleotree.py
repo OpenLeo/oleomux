@@ -3,11 +3,18 @@ from tkinter import Toplevel, Button, Scrollbar, Label, Frame
 from ttkwidgets import CheckboxTreeview
 
 
+
 class oleotree:
+    '''
+    Window to display the full message/signal tree as a treeview
+    which can have whole messages or individual signals ticked
+
+    Can also display a list of "senders/receivers" for filtering purposes
+    '''
     select_all = False
     callback = None
     
-    def __init__(self, master, owner, callback, title = "Choose which to export"):
+    def __init__(self, master, owner, callback, title = "Choose which to export", tree_type="signal"):
         self.owner = owner
         self.master = master
         self.callback = callback
@@ -23,8 +30,12 @@ class oleotree:
         self.win.rowconfigure(1, weight=1)
         self.win.columnconfigure(0, weight=1)
 
-        self.message = Label(self.win, text="Select the messages and/or signals below")
-        self.message.grid(row=0, column=0, columnspan=3)
+        if tree_type == "signal":
+            self.message = Label(self.win, text="Select the messages and/or signals below")
+            self.message.grid(row=0, column=0, columnspan=3)
+        else:
+            self.message = Label(self.win, text="Select the nodes to filter by")
+            self.message.grid(row=0, column=0, columnspan=3)
 
         self.t = CheckboxTreeview(self.win, show="tree")
         self.t.grid(row=1, column=0,  columnspan=2, sticky="nesw")
@@ -33,27 +44,51 @@ class oleotree:
         self.t.configure(yscrollcommand=self.scrollbar.set)
         self.scrollbar.grid_columnconfigure(2, minsize=10)
 
-        self.indexes = []
-        self.indexes.append((0,0))
-        offset = 1
-        message_count = 0
-        for message in self.owner.omgr.messages:
-            self.t.insert("", offset, offset, text = str(self.owner.omgr.to_hex(message)) + " - " + self.owner.omgr.messages[message].name)
-            message_offset = offset
-            self.indexes.append((message, -1))
-            offset += 1
-            message_count += 1
-
-            signal_offset = 0
-            for signal in self.owner.omgr.messages[message].signals:
-                self.t.insert(message_offset, "end", offset, text = signal.name)
-                self.indexes.append((message, signal_offset))
+        if tree_type == "signal":
+            self.indexes = []
+            self.indexes.append((0,0))
+            offset = 1
+            message_count = 0
+            for message in self.owner.omgr.messages:
+                self.t.insert("", offset, offset, text = str(self.owner.omgr.to_hex(message)) + " - " + self.owner.omgr.messages[message].name)
+                message_offset = offset
+                self.indexes.append((message, -1))
                 offset += 1
-                signal_offset += 1
+                message_count += 1
 
-        self.t.config(height=message_count - 1)
-        self.item_count = offset
-        self.message_count = message_count - 1
+                signal_offset = 0
+                for signal in self.owner.omgr.messages[message].signals:
+                    self.t.insert(message_offset, "end", offset, text = signal.name)
+                    self.indexes.append((message, signal_offset))
+                    offset += 1
+                    signal_offset += 1
+
+            self.t.config(height=message_count - 1)
+            self.item_count = offset
+            self.message_count = message_count - 1
+        else:
+            items = []
+            for message in self.owner.omgr.messages:
+                if tree_type == "ecu_tx":
+                    if self.owner.omgr.messages[message].senders is not None:
+                        for sender in self.owner.omgr.messages[message].senders:
+                            if sender not in items:
+                                items.append(sender)
+
+                if tree_type == "ecu_rx":
+                    for signal in self.owner.omgr.messages[message].signals:
+                        if signal.receivers is not None:
+                            for receiver in signal.receivers:
+                                if receiver not in items:
+                                    items.append(receiver)
+
+            ctr = 1
+            items = sorted(items)
+            for item in items:
+                self.t.insert("", "end", ctr, text = item)
+                ctr += 1
+            self.item_count = ctr
+            self.message_count = len(items) - 1
 
         frame_a = Frame(self.win)
         self.select_button = Button(frame_a, text="Select all", command=self.toggle_select)

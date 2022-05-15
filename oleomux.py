@@ -838,6 +838,19 @@ class oleomux:
         self.omgr.clean()
         self.reload_internal_from_omgr()
 
+
+    def filter_by_sender(self, *largs):
+        olt = oleotree(self.master, self, self.filter_sender_apply, title="Choose SENDERS to filter by", tree_type="ecu_tx")
+
+    def filter_sender_apply(self, *largs):
+        pass
+
+    def filter_receiver_apply(self, *largs):
+        pass
+
+    def filter_by_receiver(self, *largs):
+        olt = oleotree(self.master, self, self.filter_receiver_apply, title="Choose RECEIVERS to filter by", tree_type="ecu_rx")
+
     
     def reload_internal_from_omgr(self):
         '''
@@ -925,6 +938,9 @@ class oleomux:
 
 
         toolsmenu = Menu(self.menubar)
+        toolsmenu.add_command(label="Filter by sender...", command=self.filter_by_sender)
+        toolsmenu.add_command(label="Filter by receiver...", command=self.filter_by_receiver)
+        toolsmenu.add_separator()
         #self.menubar.add_command(label="Load CAN Map", command=self.loadCSV)  
         toolsmenu.add_command(label="Clear loaded messages", command=self.clean)  
         toolsmenu.add_command(label="Load CAN Sim", command=self.loadSim)
@@ -1518,147 +1534,6 @@ class oleomux:
             length = 0
         return (offset, length)
 
-
-    def saveCSV(self):
-        '''
-        Save a CSV of the message dict
-        '''
-
-        if self.messageMap == None or self.messageMap == "":
-            f = filedialog.asksaveasfilename(initialdir = "/home/rob/Software/diagnostique/def", 
-                                             title = "Select filename to save as...", 
-                                             filetypes = (("CAN Descriptors", 
-                                                            "*.csv*"), 
-                                                           ("all files", 
-                                                            "*.*"))) 
-            if f == ():                                                
-                return
-            else:
-                fname = f
-                self.messageMap = f
-        else:
-            fname = self.messageMap
-        
-        csvfile = open(fname, 'w', newline='')
-        writer = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        row = []
-        y = 0
-        writer.writerow(["CANALYZER",self.serialBus.get(),self.serialVeh.get()])
-
-        for message in self.messages:
-            row.append(message["id"])
-            row.append(message["name"])
-            row.append(message["label_en"])
-            row.append(message["label_fr"])
-            row.append(message["tx"])
-            row.append(message["rx"])
-            
-            for sig in message["signals"]:
-                for key in sig:
-                    row.append(sig[key])
-
-            writer.writerow(row)
-            row = []
-            y = y + 1
-
-        self.status['text'] = "Saved CAN map of " + str(y) + " rows"
-        print("[CDE] Saved " + str(y) + " rows to " + fname)
-        
-
-    def loadCSV(self):
-        '''
-        Load a CSV file containing the message definitions
-        '''
-        try:
-            f = filedialog.askopenfilename(initialdir = "/home/rob/Software/CANbus", 
-                                              title = "Select a CAN message map", 
-                                              filetypes = (("CAN Descriptors", 
-                                                            "*.csv*"), 
-                                                           ("all files", 
-                                                            "*.*"))) 
-            if f == ():
-                return
-            else:
-                self.messageMap = f
-
-            csvfile = open(self.messageMap, newline='')
-            reader = csv.reader(csvfile, delimiter=',', quotechar='"')
-
-            self.ids = []
-            self.types = []
-            self.messageType['values'] = ["Choose..."]
-            self.messageID['values'] = ["Choose..."]
-            self.messages = []
-
-            cline = 1
-
-            for row in reader:     
-                if row[0] == "CANALYZER":
-                    p = 0
-                    self.serialBus.text = row[1]
-       
-                mdef = make_dict(msg_def)
-
-                # Load basic message info
-                mdef["id"] = row[0]
-                mdef["name"] = row[1]
-                #mdef["label_en"] = row[2]
-                #mdef["label_fr"] = row[3]
-                #mdef["tx"] = row[4]
-                #mdef["rx"] = row[5]
-                mdef["signals"] = []
-
-                # Add message to combo boxes
-                self.ids.append(row[0])
-                self.types.append(row[1])
-
-                # now we interpret the rest as we go along
-                i = 2
-
-                while i < len(row):   
-                    can_def = make_dict(sig_def)
-
-                    # if new definition, turn "1.3-1.4" into an offset and len
-                    can_def["hex"] = row[0]
-                    f = self.ref_to_offset(row[i])
-                    if not not f:
-                        can_def["offset"], can_def["lenbi"] = f
-                    can_def["ref"] = row[i]
-                    i = i+1
-                    can_def["name"] = row[i]
-                    i = i+1
-                    can_def["formula"] = row[i]
-                    i = i+1
-                    can_def["unit"] = row[i]
-                    i = i+1
-                    can_def["min"] = row[i]
-                    i = i+1
-                    can_def["max"] = row[i]
-                    i = i+1
-
-                    mdef["signals"].append(can_def)
-
-
-                self.messages.append(mdef)
-                cline = cline + 1
-
-            self.messageType['values'] = self.types
-            self.messageID['values'] = self.ids
-            self.messageType.current(0)
-            self.messageID.current(0)
-
-            self.IDcurrent = 0
-            self.hexIDcurrent = self.messageID.get()
-
-            self.status['text'] = "CAN definition file loaded. " + str(len(self.messages)) + " entries"
-            csvfile.close()
-            self.CANChangeFields(saveold=False)
-
-            self.addDef['state'] = NORMAL
-        except Exception as e:
-            self.status['text'] = "CAN definition file was not loaded."
-            print("[CSV] The file couldn't be loaded from line " + str(cline) + " because: " + str(e))
-            traceback.print_exc()
 
     # Strip out anything but real letters
     def byte2ascii(self, byte):
