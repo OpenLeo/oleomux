@@ -72,10 +72,8 @@ Databases included in the repository are compiled from publicly available inform
 
 Main functionality todo list
 ----------------------------
-
 - Fix bug causing live data to no longer show up in some situations?
-- Filter messages by sender and receiver?
-- Test and fix arduino/socketcan simulations
+- Test and fix arduino/socketcan input
 - More translations and sync up with PSA-RE
 
 

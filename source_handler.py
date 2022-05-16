@@ -1,9 +1,5 @@
 from binascii import unhexlify
-import re
-import time
-import serial
-import csv
-import can
+import can, csv, os, serial, time, re, datetime, traceback, threading
 
 
 class InvalidFrame(Exception):
@@ -21,6 +17,12 @@ class SourceHandler:
     veh = ""
     cs = None
 
+    def __init__(self, *largs):
+        self.adapter_type = "raw"
+
+    def log(self, str):
+        print("[SRC] " + str)
+
     def open(self):
         raise NotImplementedError
 
@@ -28,17 +30,17 @@ class SourceHandler:
         raise NotImplementedError
 
     def log_open(self):
-        try:          
-            fname = "../../CAN Dumps/CANView_"
-            if self.veh != "":
-                fname = fname + self.veh + "_"
-            if self.bus != "":
-                fname = fname + self.bus + "_"
+        try: 
+            directory = os.path.dirname("can_logs/")
 
-            fname = fname + str(int(time.time())) + ".csv"
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+            fname = str(datetime.datetime.now().strftime("%d-%m-%Y-%H-%M-%S")) + ".log"
+
             csvfile = open(fname, 'w', newline='')
             self.cs = csv.writer(csvfile, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
         except:
+            print("[DMP]", str(traceback.format_exc()))
             print("[CAN] Logging not available.")
 
 
@@ -53,9 +55,11 @@ class SourceHandler:
         """
         raise NotImplementedError
 
+
 class CANHandler(SourceHandler):
 
     def __init__(self, bus = "", veh=""):
+        self.adapter_type = "socketcan"
         self.bus = bus
         self.veh = veh
 
@@ -67,6 +71,13 @@ class CANHandler(SourceHandler):
 
     def close(self):
         self.can0.shutdown()
+
+
+    def adapter_configure(self, baud_rate):
+        '''
+        Set the CAN speed
+        '''
+        pass
 
 
     def send_message(self, nid, msg_data):
@@ -98,9 +109,149 @@ class CANHandler(SourceHandler):
         return "{0:0{1}x}".format(inp, ln).upper()
 
 
+class SerialHandlerNew(SourceHandler):
+    def __init__(self, device_name, baudrate=115200, bus="", veh=""):
+        self.adapter_type = "serial"
+        self.device_name = device_name
+        self.baudrate = baudrate
+        self.serial_device = None
+        self.bus = bus      
+        self.veh = veh
+        self.connected = False
+        self.packets = []
+        self.serial_thread = None
+        self.thread_event = threading.Event()
+        self.serial_thread = threading.Thread(target=self.serial_thread_loop, args=(self.thread_event), daemon=True)
+
+
+    def open(self):
+        '''
+        Open the connection to the serial port
+        '''
+        self.log_open()
+        self.serial_device = serial.Serial(self.device_name, self.baudrate, timeout=None)
+        self.connected = True
+        self.thread_event.clear()
+
+
+    def start(self):
+        '''
+        Start receiving messages and load them into the buffer
+        '''
+        if not self.connected:
+            return False
+
+        self.thread_event.clear()
+
+        if not self.serial_thread.is_alive():
+            self.serial_thread.start()
+
+    
+    def stop(self):
+        '''
+        Stop receiving messages
+        '''
+        if not self.connected:
+            return False
+
+        self.thread_event.set()
+
+    
+    def adapter_configure(self, baud_rate):
+        '''
+        Set the CAN speed of the connected arduino
+        '''
+        if self.connected:
+            self.log("Change CAN speed to " + str(baud_rate))
+            if baud_rate == 125:
+                self.serial_device.write(bytearray([ord('a')]))
+            elif baud_rate == 250:
+                self.serial_device.write(bytearray([ord('f')]))
+            elif baud_rate == 500:
+                self.serial_device.write(bytearray([ord('m')]))
+
+
+    def close(self):
+        '''
+        Stop receiving messages (and load them into the buffer)
+        '''
+        if self.serial_device and self.connected:
+            self.thread_event.set()
+            self.serial_device.close()
+            self.connected = False
+
+    
+    def crc8(self, crc, extract):
+        sum = 0
+        for i in range(8):
+            sum = (crc ^ extract) & 0x01
+            crc >>= 1
+            if (sum):
+                crc ^= 0x8C
+            extract >>= 1     
+        return crc
+
+    
+    def serial_thread_loop(self, stop_event):
+        '''
+        Daemon to read from serial bus and stuff in packet
+        record
+        '''
+        while True:
+            while not stop_event.is_set():
+                this_packet = []
+                b = 0
+                crc = 0
+
+                for i in range(0, 19):
+                    b = int.from_bytes(self.serial_device.read(1), "big")
+                    if i < 18:
+                        crc = self.crc8(crc, b)
+                    this_packet.append(b)
+                
+                if crc == this_packet[-1]:
+                    # message integrity OK
+                    print(this_packet)
+                    self.packets.append(this_packet)
+                else:
+                    # resync
+                    self.serial_device.write(bytearray([ord('s')]))
+                    self.serial_device.flush()
+                    self.serial_device.flushInput()
+            
+            while stop_event.is_set():
+                time.sleep(0.2)
+
+            # resync before resume
+            self.serial_device.write(bytearray([ord('s')]))
+            self.serial_device.flush()
+            self.serial_device.flushInput()
+
+
+    def get_message(self):
+        '''
+        Get the oldest message from the FIFO
+        '''
+        if len(self.packets) == 0:
+            return False
+
+        inp = self.packets.pop(0)
+
+        msg_data = []
+        id = inp[0] << 24 | inp[1] << 16 | inp[2] << 8 | inp[3]
+        for i in range(0, inp[4]):
+            msg_data.append(inp[5 + i])
+        timestamp = inp[14] << 24 | inp[15] << 16 | inp[16] << 8 | inp[17]
+
+        self.cs.writerow([timestamp, id, inp[4], *msg_data])
+        
+        return id, msg_data
+
+
 class SerialHandler(SourceHandler):
 
     def __init__(self, device_name, baudrate=115200, bus="", veh=""):
+        self.adapter_type = "serial_old"
         self.device_name = device_name
         self.baudrate = baudrate
         self.serial_device = None
@@ -111,6 +262,13 @@ class SerialHandler(SourceHandler):
     def open(self):
         self.log_open()
         self.serial_device = serial.Serial(self.device_name, self.baudrate, timeout=0)
+
+    
+    def adapter_configure(self, baud_rate):
+        '''
+        Set the CAN speed of the connected arduino
+        '''
+        pass
 
 
     def close(self):
@@ -167,9 +325,11 @@ class SerialHandler(SourceHandler):
 
         return frame_id, bytes
 
+
 class ArdLogHandler(SourceHandler):
     # Parser for custom CAN logger CSV format
     def __init__(self, file_name, owner):
+        self.adapter_type = "log"
         self.filename = file_name
         self.owner = owner
 

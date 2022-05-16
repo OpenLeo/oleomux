@@ -5,7 +5,7 @@ from typing import OrderedDict
 
 
 
-from source_handler import CandumpHandler, InvalidFrame, CANHandler, SerialHandler, ArdLogHandler
+from source_handler import CandumpHandler, InvalidFrame, CANHandler, SerialHandlerNew, ArdLogHandler
 from recordclass import recordclass
 
 from functools import partial
@@ -71,6 +71,8 @@ class oleomux:
     USE_CAN = 1
     USE_SERIAL = 2
 
+    BAUD_RATE = 115200
+
     MSGDEF = 1
     SIGDEF = 2
     STADEF = 3
@@ -89,6 +91,7 @@ class oleomux:
     lang = "en"
 
     bit_display_mode = 0
+    source_handler = None
 
     overview_cmbs_messages = []
     overview_cmbs_signals = []
@@ -98,6 +101,9 @@ class oleomux:
     overview_messages_subscribed = []
     overview_selected_signal = []
     overview_unit_textboxs = []
+
+    active_message = 0
+    active_message_hex = 0
 
     filter_senders : list = None
     filter_receivers : list = None
@@ -363,8 +369,25 @@ class oleomux:
 
     
     def bit_display_toggle(self, new_mode):
+        '''
+        Swap bit ordering (1.7 -> 1.0 to 1.0 -> 1.7)
+        '''
         self.bit_display_mode = new_mode
         self.reload_signal_ui()
+
+
+    def setcanspeed(self, speed):
+        '''
+        Set users new CAN speed
+        '''
+        if self.source_handler is not None:
+            if self.source_handler.adapter_type == "serial":
+                self.source_handler.adapter_configure(speed)
+                self.log("Request CAN speed to " + str(speed))
+            else:
+                self.log("Unknown adapter type: " + str(self.source_handler.adapter_type))
+        else:
+            self.log("Set CAN speed not done - not connected")
         
 
     # Init window
@@ -404,7 +427,7 @@ class oleomux:
         filemenu.add_command(label="Export YAML (multiple)", command=self.saveYAMLall)
         filemenu.add_command(label="Export YAML (only selected)", command=self.saveYAMLselected)
         
-        filemenu.add_command(label="Export C Code...", command=self.exportCoptions)
+        filemenu.add_command(label="Export C Code", command=self.exportCoptions)
         self.menubar.add_cascade(label= "File", underline=0, menu= filemenu)
 
         createWin = master.register(self.createOverview)
@@ -424,7 +447,8 @@ class oleomux:
         toolsmenu.add_separator()
         #self.menubar.add_command(label="Load CAN Map", command=self.loadCSV)  
         toolsmenu.add_command(label="Clear loaded messages", command=self.clean)  
-        toolsmenu.add_command(label="Load CAN Sim", command=self.loadSim)
+        toolsmenu.add_command(label="Load Oleomux CAN log", command=self.loadSim)
+        toolsmenu.add_command(label="Load candump log", command=self.loadSim)
         toolsmenu.add_separator()
         self.bit_type = IntVar(master)
         self.bit_type.set(self.omgr.MODE_OLEO)
@@ -438,8 +462,16 @@ class oleomux:
         self.com_type = Menu(self.menubar)
         self.contype = IntVar(master)
         self.contype.set(self.USE_CAN)
+        
+        self.canspeed = IntVar(master)
+        self.canspeed.set(250)
+
         self.com_type.add_radiobutton(label="Serial", var=self.contype, value=self.USE_SERIAL, command=self.SerialEnable)
         self.com_type.add_radiobutton(label="SocketCAN", var=self.contype, value=self.USE_CAN, command=self.CANEnable)
+        self.com_type.add_separator()
+        self.com_type.add_radiobutton(label="CAN 125kbps", var=self.canspeed, value=125, command=partial(self.setcanspeed, 125))
+        self.com_type.add_radiobutton(label="CAN 250kbps", var=self.canspeed, value=250, command=partial(self.setcanspeed, 250))
+        self.com_type.add_radiobutton(label="CAN 500kbps", var=self.canspeed, value=500, command=partial(self.setcanspeed, 500))
         self.menubar.add_cascade(label="Comms", menu=self.com_type)
 
         ################# ROW 1 ###########################
@@ -449,9 +481,6 @@ class oleomux:
 
         self.serial_frame = Frame(master)
 
-        self.serialBus = Entry(self.serial_frame, text="500kbps", width=10)
-        self.serialBus.grid(column=2,row=1)
-
         lis = serial.tools.list_ports.comports()
         self.com_ports = []
         opts = []
@@ -459,14 +488,14 @@ class oleomux:
             self.com_ports.append(item[0])
             opts.append(str(item[0]) + " - " + str(item[1]))
 
-        self.serialPort = Combobox(self.serial_frame, values = opts)
+        self.serialPort = Combobox(self.serial_frame, values = opts, width=25)
         self.serialPort.grid(column=1,row=1)
         self.serialPort.current(0)
         self.serialPort.bind("<<ComboboxSelected>>", self.COMPortChange)
         self.serialPort['state'] = DISABLED
 
         self.serial_frame.grid(column=2, row=1, columnspan=2)
-        self.connex = Button(self.serial_frame, text=">", command=self.connexion)
+        self.connex = Button(self.serial_frame, text="Connect", command=self.connexion)
         self.connex.grid(column=4, row=1, columnspan=1)
 
         # Hex converter utility
@@ -488,7 +517,7 @@ class oleomux:
         # so is totally ignored in Serial mode
         scmd = master.register(self.simDelayTime)
         self.simFrame = Frame(master)
-        self.simLabel = Label(self.simFrame, text="Sim Speed:")
+        self.simLabel = Label(self.simFrame, text="Sim Delay:")
         self.simLabel.grid(column=1, row=1, columnspan=1)
         self.simFrame.grid(column=7, row=1, columnspan=1)
         self.simDelay = Entry(self.simFrame, validate="focusout", validatecommand=(scmd, '%P'), width=5)
@@ -530,13 +559,17 @@ class oleomux:
 
         self.lab_hex = []
         self.lab_bin = []
+        self.hexbin_frame = Frame(master)
+        self.hexbin_frame.grid(row=3, column=1, columnspan = 8, rowspan=2)
+
         for x in range(0,8):
-            self.lab_hex.append(Label(master, text="----", fg="white", bg="blue"))
-            self.lab_hex[x].grid(row=3,column=x+1)
+            self.lab_hex.append(Label(self.hexbin_frame, text="----", fg="white", bg="blue"))
+            self.lab_hex[x].grid(row=1,column=x+1)
             self.lab_hex[x].config(font=("Monospace", 14))
-            self.lab_bin.append(Label(master, text="--------"))
-            self.lab_bin[x].grid(row=4,column=x+1)
+            self.lab_bin.append(Label(self.hexbin_frame, text="--------"))
+            self.lab_bin[x].grid(row=2,column=x+1)
             self.lab_bin[x].config(font=("Monospace", 12))
+            self.hexbin_frame.grid_columnconfigure(x+1, minsize=110)
 
         self.canFields = []
         self.canLabels = ["Bit Pos", "Name", "Name (EN)", "Calc Value", "Unit", "Min", "Max", "Edit", "Delete" ]
@@ -658,29 +691,26 @@ class oleomux:
                 try:        
                     self.port = self.com_ports[self.serialPort.current()]
                     print("[SER] Connect to " + self.port)
-                    baud = 115200
-                    self.source_handler = SerialHandler(self.port, baudrate=baud, bus=self.serialBus.get(), veh=self.serialVeh.get())
-                    # If reading from a serial device, it will be opened with timeout=0 (non-blocking read())
+                    baud = self.BAUD_RATE
+                    self.source_handler = SerialHandlerNew(self.port, baudrate=baud, bus="", veh="")
                     self.source_handler.open()
 
                     self.connex.configure(text="Disconnexion")
                     
                     self.startThread()
                     self.serial_connex = True
-                    self.serialBus['state'] = 'readonly'
                     self.serialPort['state'] = 'readonly'
                 except:
                     print("[SER] Connexion failed")
                     self.status['text'] = "Connexion to serial port failed"
             else:
-                self.serialBus['state'] = 'normal'
                 self.serialPort['state'] = 'normal'
 
         elif self.conn == self.USE_CAN:
             if not self.can_connex:
                 try:
                     
-                    self.source_handler = CANHandler(bus=self.serialBus.get(), veh=self.serialVeh.get())
+                    self.source_handler = CANHandler(bus="", veh="")
                     self.source_handler.open()
                     print("[CAN] Interface can0 initialised successfully")
                     self.can_connex = True
@@ -694,6 +724,12 @@ class oleomux:
             print("[APP] No communication configured")
 
     def parse_can_data(self):
+        '''
+        Check for messages flagged as having changed
+        and if its the one we have on screen, update + render it
+        
+        Also prompt the overview UI to update
+        '''
         #try:
         if self.serial_connex or self.can_connex:
             if not self.reading_thread.is_alive():
@@ -702,42 +738,42 @@ class oleomux:
                 self.can_connex = False
                 self.connex.configure(text="Connexion")
                 self.simStart.configure(text=">")
-                self.master.after(2, self.parse_can_data)
+                self.master.after(50, self.parse_can_data)
                 return
 
             with can_messages_lock:
+                # update the overview window if needed
                 if not self.winView == None:
+                    # todo needs a separate can_flags
                     self.winViewUpdateFields()
 
-                for x in can_flags:
-                    if x == self.active_message_hex:
-                        if can_flags[self.active_message_hex]:
+                if self.active_message_hex in can_flags:
+                    if can_flags[self.active_message_hex]:
 
-                            msg = can_messages[self.active_message_hex]
-                            for p in self.canFields:
-                                p.update(msg)
+                        msg = can_messages[self.active_message_hex]
+                        for p in self.canFields:
+                            p.update(msg)
 
-                            can_flags[self.active_message_hex] = False
+                        can_flags[self.active_message_hex] = False
 
-                            # Update binary and hex representations
-                            z = 0
-                            b = 0
-                            buf = ""
-                            buf2 = ""
-                            for x in msg:
-                                buf = buf + str(x)
-                                buf2 = buf2 + str(x)
-                                z = z + 1
-                                if z == 8:
-                                    self.lab_bin[b]["text"] = buf
-                                    self.lab_hex[b]["text"] = str(hex(int(buf2, 2)))
-                                    buf = ""
-                                    buf2 = ""
-                                    z = 0
-                                    b = b+1
-                    else:
-                        can_flags[x] = False
-        self.master.after(500, self.parse_can_data)
+                        # Update binary and hex representations
+                        z = 0
+                        b = 0
+                        buf = ""
+                        buf2 = ""
+                        for x in msg:
+                            buf = buf + str(x)
+                            buf2 = buf2 + str(x)
+                            z = z + 1
+                            if z == 8:
+                                self.lab_bin[b]["text"] = buf
+                                self.lab_hex[b]["text"] = str(hex(int(buf2, 2)))
+                                buf = ""
+                                buf2 = ""
+                                z = 0
+                                b = b+1
+
+        self.master.after(50, self.parse_can_data)
         #except Exception as e:
         #    print("[CRD] Exception in update loop: " + str(e))
         #    self.master.after(2, self.readSerial)
@@ -792,7 +828,7 @@ class oleomux:
                 return
 
             self.log("Starting new thread")
-            self.source_handler.open(bus=self.serialBus.get())
+            self.source_handler.open(bus="")
             self.simStart.configure(text="||")
             self.startThread()
             stop_reading.clear()
@@ -1362,9 +1398,9 @@ def can_to_bin(data):
     out = []
     for x in data:
         out.append("{0:08b}".format(int(x)))
-    binstr = "".join(out)
+    #binstr = "".join(out)
     
-    return list(binstr)
+    return out
 
 def reading_loop(source_handler):
     """Background thread for reading."""
@@ -1372,7 +1408,10 @@ def reading_loop(source_handler):
     while 1:
         while not stop_reading.is_set():
             try:
-                frame_id, data = source_handler.get_message()
+                result = source_handler.get_message()
+                if not result:
+                    continue
+                frame_id, data = result
                 #print(frame_id)
             except InvalidFrame:
                 print("[CAN] Invalid frame encountered")
@@ -1380,16 +1419,11 @@ def reading_loop(source_handler):
             except EOFError:
                 break
 
-            # Add the frame to the can_messages dict and tell the main thread to refresh its content
+            # Add the frame to the can_messages dict and flag that it changed
             with can_messages_lock:
                 can_messages[frame_id] = can_to_bin(data)
-                #print("[CAN] Send " + str(frame_id))
-                #if frame_id in can_flags:
-                #    if can_flags[frame_id]:
-                #        print("[CAN] Block on ID: " + str(frame_id))
-                #        while can_flags[frame_id]:
-                #            time.sleep(0.025)
                 can_flags[frame_id] = True
+
         time.sleep(0.2)
 
     #except:
