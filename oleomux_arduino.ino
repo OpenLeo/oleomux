@@ -15,6 +15,7 @@
 #define SPD_125     'a'
 #define SPD_250     'f'
 #define SPD_500     'm'
+#define SYNC        's'
 #define QSTATUS     'q'
 #define ADAPTER_ACK 'z'
 
@@ -40,6 +41,7 @@ unsigned char inchar = 0;
 volatile unsigned char mq_len = 0;
 unsigned char output[20];
 unsigned char crc = 0;
+unsigned char i = 0;
 
     
 // calculate the transmission CRC
@@ -60,7 +62,7 @@ unsigned char crc8(unsigned char crc, unsigned char extract){
 void restart_can(){
     can_ok = (CAN0.begin(MCP_ANY, default_can_speed, MCP_CRYSTAL) == CAN_OK);
     CAN0.setMode(MCP_NORMAL);
-    Serial.write(ADAPTER_ACK);
+    //Serial.write(ADAPTER_ACK);
 }
 
 
@@ -101,6 +103,9 @@ void loop(){
                 default_can_speed = CAN_500KBPS;
                 restart_can();
                 break;
+            case SYNC:
+                delay(150);
+                break;
             case QSTATUS:
                 Serial.write(0xF0 + can_ok);
                 break;
@@ -129,7 +134,7 @@ void loop(){
         output[17] = mq[ptr_read].time_stamp;
 
         for (i = 0; i < 18; i++){
-            crc = crc8(output[i]);
+            crc = crc8(crc, output[i]);
             Serial.write(output[i]);
         }
 
