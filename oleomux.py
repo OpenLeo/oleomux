@@ -9,7 +9,7 @@ from source_handler import CandumpHandler, InvalidFrame, CANHandler, SerialHandl
 from recordclass import recordclass
 
 from functools import partial
-import cantools, pprint, serial, can, csv, numexpr, threading, sys, traceback, time, serial.tools.list_ports, yaml
+import cantools, pprint, serial, can, csv, numexpr, threading, sys, traceback, time, serial.tools.list_ports, yaml, os, datetime
 from os import listdir
 from os.path import isfile, join
 
@@ -67,6 +67,7 @@ def make_dict(d_src):
 
 
 class oleomux:
+    version = "1.001"
 
     USE_CAN = 1
     USE_SERIAL = 2
@@ -135,9 +136,18 @@ class oleomux:
         Log to the console, and to file
         '''
         if msg is None:
-            print("[OMG] " + str(ma))
-        else:
-            print(str(ma) + " " + str(msg))
+            msg = ma
+            ma = "OMG"
+
+        print("[" + str(ma) + "] " + str(msg))
+
+        try:
+            if self.log_fh is not None:
+                self.log_fh.write("[" + str(ma) + "] " + str(msg) + "\n")
+                self.log_fh.flush()
+        except:
+            #print("[LOG] No file handle available")
+            pass
 
 
     def importYAMLfile(self):
@@ -536,6 +546,25 @@ class oleomux:
 
         self.omgr = oleomgr(self.configuration)
         self.bit_display_mode = self.configuration["bit_ordering"]
+        self.log_fh = None
+
+        # open the log file
+        try:
+            directory = os.path.dirname(self.configuration["logs_dir"])
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+            fn = "oleomux-" + str(datetime.datetime.now().strftime("%d-%m-%Y-%H-%M-%S")) + ".log"
+            self.log_fh = open(self.configuration["logs_dir"] + str(fn), "w")
+
+            output = "OLEOMUX CAN MANAGER " + str(self.version) + "\n"
+            output = output + "Software: " + str(self.version) + "\n"
+            output = output + "Date    : " + str(datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")) + "\n\n"
+            self.log_fh.write(output)
+        except:
+            print("[LOG] Error create logfile")
+            self.log_fh = None
+
+        pprint.pprint(self.configuration, self.log_fh)
 
         master.title("OpenLEO CAN database manager")
 
@@ -739,6 +768,8 @@ class oleomux:
         self.status = Label(self.frame, text="Ready.", bd=1, relief=SUNKEN, anchor=W)
         self.status.pack(fill="both", expand=True)
         self.frame.grid(row=6, column=0, columnspan=10, sticky="sew")
+
+        self.log("Initialisation complete - ready for work")
 
 
     def COMPortChange(self, *largs):
