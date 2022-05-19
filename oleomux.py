@@ -573,7 +573,8 @@ class oleomux:
         filemenu = Menu(self.menubar)
 
         filemenu.add_command(label="Import DBC", command=self.importDBC)
-        filemenu.add_command(label="Export DBC", command=self.exportDBC)
+        # Removed until the MANY bugs in dbc exporting are dealt with
+        #filemenu.add_command(label="Export DBC", command=self.exportDBC)
         filemenu.add_separator()
         filemenu.add_command(label="Import YAML (file)", command=self.importYAMLfile)
         filemenu.add_command(label="Import YAML (folder)", command=self.importYAMLfolder)
