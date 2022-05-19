@@ -4,3 +4,4 @@ nogit/*
 *.c
 *.h
 *.yml
+*.log

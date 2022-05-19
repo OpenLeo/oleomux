@@ -918,14 +918,15 @@ class oleomux:
 
             with can_messages_lock:
                 # update the overview window if needed
-                if not self.winView == None:
+                #if not self.winView == None:
                     # todo needs a separate can_flags
-                    self.winViewUpdateFields()
+                    #self.winViewUpdateFields()
 
                 if self.active_message_hex in can_flags:
                     if can_flags[self.active_message_hex]:
 
                         msg = can_messages[self.active_message_hex]
+                        self.log("Update: " + str(self.active_message_hex))
                         for p in self.canFields:
                             p.update(msg)
 
@@ -1221,6 +1222,8 @@ class oleomux:
             f = ""
             for x in range(start, start+length):
                 #print(x, len(can))
+                if x >= len(can):
+                    return 0
                 f = f + str(can[x])
             return int(f, 2)
         except:
@@ -1629,9 +1632,9 @@ def can_to_bin(data):
     out = []
     for x in data:
         out.append("{0:08b}".format(int(x)))
-    #binstr = "".join(out)
+    binstr = "".join(out)
     
-    return out
+    return binstr
 
 def reading_loop(source_handler):
     """Background thread for reading."""

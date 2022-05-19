@@ -19,7 +19,7 @@ Uses CAN message data compiled from:
 
 Functionality
 -------------
-- Import DBC format
+- Import DBC format (export coming soon)
 - Import and Export YAML format (single message per file, according to OpenLEO standards)
 - Export/generate C structures and parsing code for integration to microcontroller projects
 - Create/edit/delete signals and messages
@@ -72,6 +72,9 @@ Databases included in the repository are compiled from publicly available inform
 
 Main functionality todo list
 ----------------------------
+- Fix cantools dbc output code
+    - if there is no sender/receivers then it outputs illegal dbc
+    - if there are spaces in signal names it outputs illegal dbc
 - Fix bug causing live data to no longer show up in some situations?
 - Test and fix arduino/socketcan input
 - More translations and sync up with PSA-RE

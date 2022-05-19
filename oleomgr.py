@@ -64,10 +64,10 @@ class oleomgr:
         Convert from the strange bit numbering (endian-ified)
         to something we can use in code
         '''
-        byte = math.floor(start / 8)
-        rem = start - (byte * 8) + 1
+        start_byte = math.ceil((start + 1) / 8)
+        start_bit  = start % 8
 
-        return (byte * 8) + (8 - rem)
+        return ((start_byte - 1) * 8) + (7-start_bit)
 
 
     def yml_bits_encode(self, signal: cantools.database.can.Signal, output_mode=1):
