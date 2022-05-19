@@ -16,6 +16,7 @@ class SourceHandler:
     bus = ""
     veh = ""
     cs = None
+    filter_log = None
 
     def __init__(self, *largs):
         self.adapter_type = "raw"
@@ -261,10 +262,16 @@ class SerialHandlerNew(SourceHandler):
 
         msg_data = []
         id = inp[0] << 24 | inp[1] << 16 | inp[2] << 8 | inp[3]
+
         for i in range(0, inp[4]):
             msg_data.append(inp[5 + i])
         timestamp = inp[14] << 24 | inp[15] << 16 | inp[16] << 8 | inp[17]
 
+        if self.filter_log is not None:
+            if id not in self.filter_log:
+                # skip logging only if we explicitly filtered it out
+                return id, msg_data
+        
         self.cs.writerow([timestamp, id, inp[4], *msg_data])
         
         return id, msg_data

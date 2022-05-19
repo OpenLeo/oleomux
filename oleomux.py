@@ -34,7 +34,7 @@ from oleosigeditor import signal_editor, choice_editor
 #   - 207 project by alexandreblin 
 #   - OpenLEO databases
 #   - contributors to autowp.github.io documentation
-#   - EMU Projects own research
+#   - own research
 #
 #   The software will accept either raw serial input from the accompanying
 #   Arduino sketch, or a dump file previously created from that sketch
@@ -104,11 +104,14 @@ class oleomux:
     overview_selected_signal = []
     overview_unit_textboxs = []
 
+    
+
     active_message = 0
     active_message_hex = 0
 
     filter_senders : list = None
     filter_receivers : list = None
+    log_filter = None
 
 
     def log(self, ma, msg = None):
@@ -288,7 +291,7 @@ class oleomux:
 
 
     def filter_by_sender(self, *largs):
-        olt = oleotree(self.master, self, self.filter_sender_apply, title="Choose SENDERS to filter by", tree_type="ecu_tx")
+        olt = oleotree(self.master, self, self.filter_sender_apply, title="Choose SENDERS to filter by", tree_type="ecu_tx", selection=self.filter_senders)
 
     def filter_sender_apply(self, results, *largs):
         if len(results) == 0:
@@ -306,7 +309,7 @@ class oleomux:
         self.log("Filter by receiver: " + str(results))
 
     def filter_by_receiver(self, *largs):
-        olt = oleotree(self.master, self, self.filter_receiver_apply, title="Choose RECEIVERS to filter by", tree_type="ecu_rx")
+        olt = oleotree(self.master, self, self.filter_receiver_apply, title="Choose RECEIVERS to filter by", tree_type="ecu_rx", selection=self.filter_receivers)
 
     def clear_filters(self, *largs):
         self.filter_receiver = None
@@ -378,8 +381,29 @@ class oleomux:
         self.reload_signal_ui()
 
 
+    def log_filter_apply(self, results):
+        '''
+        Actually apply result
+        '''
+        if len(results) == 0:
+            self.log("User chose nothing to store in log > invalid > ignored")
+            return
+        self.log_filter = results.keys()
+        
+        if self.source_handler is not None:
+            self.source_handler.filter_log = self.log_filter
+
+        self.log("Log filter applied")
+
+
     def log_filter_cfg(self):
-        pass
+        '''
+        Show treeview to let user choose which messages to log
+        '''
+        if self.log_filter == None:
+            olt = oleotree(self.master, self, self.log_filter_apply, title="Choose which messages to include in log", tree_type = "msg", selection=1)
+        else:
+            olt = oleotree(self.master, self, self.log_filter_apply, title="Choose which messages to include in log", tree_type = "msg", selection=self.log_filter)
 
 
     def setcanspeed(self, speed):

@@ -229,6 +229,9 @@ class oleomgr:
 
     
     def clean(self):
+        '''
+        Clear the internal db
+        '''
         self.messages = OrderedDict()
 
 
