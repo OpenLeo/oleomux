@@ -71,6 +71,8 @@ class oleomux:
     USE_CAN = 1
     USE_SERIAL = 2
 
+    default_can_speed = 250
+    last_can_speed = 250
     BAUD_RATE = 115200
 
     MSGDEF = 1
@@ -376,18 +378,27 @@ class oleomux:
         self.reload_signal_ui()
 
 
+    def log_filter_cfg(self):
+        pass
+
+
     def setcanspeed(self, speed):
         '''
         Set users new CAN speed
         '''
         if self.source_handler is not None:
             if self.source_handler.adapter_type == "serial":
-                self.source_handler.adapter_configure(speed)
                 self.log("Request CAN speed to " + str(speed))
+                if not self.source_handler.adapter_configure(speed):
+                    self.canspeed.set(self.last_can_speed)
+                else:
+                    self.last_can_speed = speed
             else:
                 self.log("Unknown adapter type: " + str(self.source_handler.adapter_type))
+                self.canspeed.set(self.last_can_speed)
         else:
             self.log("Set CAN speed not done - not connected")
+            self.canspeed.set(self.last_can_speed)
         
 
     # Init window
@@ -464,7 +475,7 @@ class oleomux:
         self.contype.set(self.USE_CAN)
         
         self.canspeed = IntVar(master)
-        self.canspeed.set(250)
+        self.canspeed.set(self.default_can_speed)
 
         self.com_type.add_radiobutton(label="Serial", var=self.contype, value=self.USE_SERIAL, command=self.SerialEnable)
         self.com_type.add_radiobutton(label="SocketCAN", var=self.contype, value=self.USE_CAN, command=self.CANEnable)
@@ -472,6 +483,8 @@ class oleomux:
         self.com_type.add_radiobutton(label="CAN 125kbps", var=self.canspeed, value=125, command=partial(self.setcanspeed, 125))
         self.com_type.add_radiobutton(label="CAN 250kbps", var=self.canspeed, value=250, command=partial(self.setcanspeed, 250))
         self.com_type.add_radiobutton(label="CAN 500kbps", var=self.canspeed, value=500, command=partial(self.setcanspeed, 500))
+        self.com_type.add_separator()
+        self.com_type.add_command(label="Filter messages to log", command=self.log_filter_cfg)
         self.menubar.add_cascade(label="Comms", menu=self.com_type)
 
         ################# ROW 1 ###########################
@@ -694,6 +707,7 @@ class oleomux:
                     baud = self.BAUD_RATE
                     self.source_handler = SerialHandlerNew(self.port, baudrate=baud, bus="", veh="")
                     self.source_handler.open()
+                    self.source_handler.start()
 
                     self.connex.configure(text="Disconnexion")
                     
@@ -808,8 +822,26 @@ class oleomux:
 
 
     def startSim(self):
+        if self.serial_connex:
+            if self.source_handler.is_running():
+                self.status['text'] = "Receiving from adapter paused"
+                stop_reading.set()         
+                self.source_handler.stop()
+                self.simStart.configure(text=">")
+                self.log("Reception from serial adapter paused")
+                return
+
+            else:
+                self.status['text'] = "Receiving from adapter resumed"
+                self.source_handler.start()
+                stop_reading.clear()
+                self.simStart.configure(text=">")
+                self.log("Reception from serial adapter resumed")
+                return
+            
         if self.can_connex and self.sim_ok:
             stop_reading.set()         
+            self.source_handler.stop()
             self.simStart.configure(text=">")
             self.status['text'] = "SIM paused"
             self.can_connex = False
@@ -822,6 +854,7 @@ class oleomux:
             if self.reading_thread != None:
                 stop_reading.clear()
                 self.can_connex = True
+                self.source_handler.start()
                 self.simStart.configure(text="||")
                 self.status['text'] = "Simulation from " + self.source_handler.filename + " resumed"
                 self.log("Resumed simulation")
@@ -843,10 +876,19 @@ class oleomux:
         '''
         Start the reading background thread
         '''
-        self.reading_thread = None
-        self.reading_thread = threading.Thread(target=reading_loop, args=(self.source_handler,), daemon=True)
-        self.reading_thread.start()
-        print("[THR] Started reading thread")
+        if self.reading_thread != None:
+            self.reading_thread = None
+            self.reading_thread = threading.Thread(target=reading_loop, args=(self.source_handler,), daemon=True)
+            self.reading_thread.start()
+            print("[THR] Started reading thread")
+
+        if self.reading_thread.is_alive():
+            print("[THR] Reading thread is already running, no action taken")
+        else:
+            self.reading_thread = None
+            self.reading_thread = threading.Thread(target=reading_loop, args=(self.source_handler,), daemon=True)
+            self.reading_thread.start()
+            print("[THR] Re-created reading thread")
 
 
     def CANChangeMsgType(self, *largs):
