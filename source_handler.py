@@ -55,6 +55,18 @@ class SourceHandler:
         """
         raise NotImplementedError
 
+    
+    def adapter_configure(self):
+        self.log("This adapter can not be configured")
+        return False
+
+    
+    def start(self):
+        self.log("Nothing to do to start")
+
+    def stop(self):
+        self.log("Nothing to do to stop")
+
 
 class CANHandler(SourceHandler):
 
@@ -117,6 +129,7 @@ class SerialHandlerNew(SourceHandler):
         self.serial_device = None
         self.bus = bus      
         self.veh = veh
+        self.can_speed = 250
         self.connected = False
         self.packets = []
         self.serial_thread = None
@@ -141,6 +154,8 @@ class SerialHandlerNew(SourceHandler):
         if not self.connected:
             return False
 
+        self.adapter_configure(self.can_speed)
+
         self.thread_event.clear()
 
         if not self.serial_thread.is_alive():
@@ -161,6 +176,7 @@ class SerialHandlerNew(SourceHandler):
         '''
         Set the CAN speed of the connected arduino
         '''
+        self.can_speed = baud_rate
         if self.connected:
             self.log("Change CAN speed to " + str(baud_rate))
             if baud_rate == 125:
@@ -169,6 +185,12 @@ class SerialHandlerNew(SourceHandler):
                 self.serial_device.write(bytearray([ord('f')]))
             elif baud_rate == 500:
                 self.serial_device.write(bytearray([ord('m')]))
+            else:
+                return False
+            
+            return True
+        else:
+            return False
 
 
     def close(self):
@@ -268,7 +290,8 @@ class SerialHandler(SourceHandler):
         '''
         Set the CAN speed of the connected arduino
         '''
-        pass
+        print("The adapter does not support changing CAN speed")
+        return False
 
 
     def close(self):
