@@ -544,7 +544,7 @@ class oleomux:
         self.master.bind("<Destroy>",self.destroyed)
         self.config_load()
 
-        self.omgr = oleomgr(self.configuration)
+        self.omgr = oleomgr(self, self.configuration)
         self.bit_display_mode = self.configuration["bit_ordering"]
         self.log_fh = None
 
@@ -601,7 +601,7 @@ class oleomux:
         #self.menubar.add_command(label="Load CAN Map", command=self.loadCSV)  
         toolsmenu.add_command(label="Clear loaded messages", command=self.clean)  
         toolsmenu.add_command(label="Load Oleomux CAN log", command=self.loadSim)
-        toolsmenu.add_command(label="Load candump log", command=self.loadSim)
+        toolsmenu.add_command(label="Load candump log", command=self.loadSimCanDump)
         toolsmenu.add_separator()
         self.bit_type = IntVar(master)
         self.bit_type.set(self.configuration["bit_ordering"])
@@ -980,6 +980,25 @@ class oleomux:
             print("[SIM] No file loaded")
             self.status['text'] = "Failed to load simulation file"
 
+    
+    def loadSimCanDump(self):
+        try:
+            filename = filedialog.askopenfilename(initialdir = "/home/rob/Software/car_projects/CAN Dumps", 
+                                          title = "Select a candump log file", 
+                                          filetypes = (("CAN Dumps", 
+                                                       "*.dmp*"), 
+                                                       ("all files", 
+                                                        "*.*"))) 
+            if not filename:
+                return
+            else:
+                self.sim_ok = True
+                self.source_handler = CandumpHandler(filename, self)
+                self.status['text'] = "Simulation file loaded"
+        except:
+            print("[SIM] No file loaded")
+            self.status['text'] = "Failed to load simulation file"
+
 
     def startSim(self):
         if self.serial_connex:
@@ -1084,6 +1103,11 @@ class oleomux:
         Clear the list of fields and create new ones
         '''
 
+        if len(self.omgr.messages) > 0:
+            self.addDef['state'] = NORMAL
+        else:
+            self.addDef['state'] = DISABLED
+
         # close editor windows if open
         if self.win_msg_editor is not None:
             if self.win_msg_editor.created == 1:
@@ -1143,7 +1167,7 @@ class oleomux:
             messagebox.showerror("Sacre bleu", "The ID " + str(result) + " already exists, please edit that instead")
             return
         
-        self.omgr.messages[id] = cantools.database.can.Message(frame_id = id)
+        self.omgr.messages[id] = cantools.database.can.Message(frame_id = id, name="Unspecified " + str(result), length=8, signals=[])
         self.reload_msg_list()
         # TODO: save changes if the window is open?
         if self.win_msg_editor is not None:
@@ -1164,14 +1188,14 @@ class oleomux:
         except:
             return False
       
-        self.messages[self.active_message].signals.append(cantools.database.can.Signal(start=start, length=lng))
+        self.omgr.messages[self.active_message].signals.append(cantools.database.can.Signal(start=start, name="New signal " + str(result), length=lng))
         self.reload_signal_ui()
 
         # TODO: save changes if the window is open?
         if self.win_sig_editor is not None:
             if self.win_sig_editor.created == 1:
                 self.win_sig_editor.win.destroy()
-        self.win_sig_editor = signal_editor(self.master, self, "new message", id, len(self.messages[self.active_message].signals) - 1)
+        self.win_sig_editor = signal_editor(self.master, self, "new message", self.active_message, len(self.omgr.messages[self.active_message].signals) - 1)
     
     def edit_signal(self, mid, sid):
         

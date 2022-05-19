@@ -71,7 +71,7 @@ class signal_editor:
 
             comment_fields = self.app.omgr.yml_comment_encode(sig.comment)
 
-            self.svs["name_en"] =  StringVar(comment_fields["name_en"])
+            self.svs["name_en"] =  StringVar(value=comment_fields["name_en"])
             self.svs["comment_en"] = comment_fields["comment_en"]
             self.svs["comment_fr"] = comment_fields["comment_fr"]
             self.svs["src"] = comment_fields["src"]

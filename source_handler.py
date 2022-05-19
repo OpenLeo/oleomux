@@ -17,12 +17,16 @@ class SourceHandler:
     veh = ""
     cs = None
     filter_log = None
+    owner = None
 
     def __init__(self, *largs):
         self.adapter_type = "raw"
 
     def log(self, str):
-        print("[SRC] " + str)
+        if self.owner is not None:
+            self.owner.log(str)
+        else:
+            print("[SRC] " + str)
 
     def open(self):
         raise NotImplementedError
@@ -408,9 +412,10 @@ class CandumpHandler(SourceHandler):
     MSG_RE = r".* ([0-9A-F]+)\#([0-9A-F]*)"
     MSG_RGX = re.compile(MSG_RE)
 
-    def __init__(self, file_path):
+    def __init__(self, file_path, owner):
         self.file_path = file_path
         self.file_object = None
+        self.owner = owner
 
     def open(self):
         # interface name in candump file may contain non-ascii chars so we need utf-8

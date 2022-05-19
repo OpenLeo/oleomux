@@ -68,10 +68,10 @@ class message_editor:
 
 
             comment_fields = self.app.omgr.yml_comment_encode(msg.comment)
-            self.svs["name_en"] =  StringVar(comment_fields["name_en"])
+            self.svs["name_en"] =  StringVar(value=comment_fields["name_en"])
             self.svs["comment_en"] = comment_fields["comment_en"]
             self.svs["comment_fr"] = comment_fields["comment_fr"]
-            self.svs["src"] = comment_fields["src"]
+            self.svs["src"] = StringVar(value=comment_fields["src"])
 
             self.lbl.append(Label(self.win, text="Name (EN)"))
             self.field.append(Entry(self.win, text = self.svs["name_en"]))
@@ -87,10 +87,10 @@ class message_editor:
             self.field[-1].insert(END, str(self.svs["comment_fr"]))
 
             self.lbl.append(Label(self.win, text="Periodicity"))
-            self.field.append(Spinbox(self.win, text = self.svs["periodicity"], state="disabled"))
+            self.field.append(Spinbox(self.win, text = self.svs["periodicity"]))
 
             self.lbl.append(Label(self.win, text="Senders"))
-            self.field.append(Entry(self.win, text = self.svs["senders"], state="disabled"))
+            self.field.append(Entry(self.win, text = self.svs["senders"]))
 
             self.lbl.append(Label(self.win, text="Signals"))
             self.field.append(Label(self.win, text = str(self.svs["signals"])))
@@ -128,7 +128,7 @@ class message_editor:
         comments_collection["comment_en"] = self.comment_field_en.get("1.0", "end-1c")
         comments_collection["comment_fr"] = self.comment_field_fr.get("1.0", "end-1c")
         comments_collection["name_en"] = self.svs["name_en"].get()
-        comments_collection["src"] = self.svs["src"]            # not user editable, atm
+        comments_collection["src"] = self.svs["src"].get()       # not user editable, atm
 
         comments_joined = self.app.omgr.yml_comment_decode(comments_collection)
 

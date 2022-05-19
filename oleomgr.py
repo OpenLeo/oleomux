@@ -1,5 +1,5 @@
 from typing import OrderedDict
-import yaml, sys, math, cantools, pprint, copy
+import yaml, sys, math, cantools, pprint, copy, traceback
 from cantools.database.can.signal import NamedSignalValue
 
 '''
@@ -21,16 +21,22 @@ class oleomgr:
     MODE_OLEO = 1           # 1.7 1.6 1.5
     MODE_CANT = 2           # 1.0 1.1 1.2
 
-    def __init__(self, config):
+    def __init__(self, owner, config):
         self.messages = OrderedDict()
         self.configuration = config
+        self.owner = owner
 
         for i in range(self.configuration["tab_space_num"]):
             self.TAB = self.TAB + " "
 
 
-    def log(self, msg):
-        print("[LOG] " + str(msg))
+    def log(self, hdr, msg = None):
+        if self.owner is not None:
+            if msg is None:
+                msg = hdr
+                hdr = "OMG"
+                
+            self.owner.log(hdr, msg)
 
 
     def to_hex(self, raw_val, lng=3):
@@ -260,6 +266,7 @@ class oleomgr:
                 db = cantools.database.load_file(fname, strict=False, encoding = 'utf-8')
             except:
                 self.log("Failed in normal mode - check the file and try again")
+                self.log("DMP", str(traceback.format_exc()))
                 return False
         self.log("Loaded " + str(len(db.messages)) + " messages")
 
@@ -455,6 +462,7 @@ class oleomgr:
                 msg = yaml.safe_load(f_contents)
             except:
                 msg = None
+                self.log("DMP", str(traceback.format_exc()))
 
             msg_signals = []
 

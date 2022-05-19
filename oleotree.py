@@ -82,19 +82,19 @@ class oleotree:
                     sig_selected = 0
                     self.t.insert(message_offset, "end", offset, text = signal.name)
                     self.indexes.append((message, signal_offset))
-                    offset += 1
-
+                    
                     if msg_selected == 1:
                         if selection[message] == 1:
                             sig_selected == 1
                         elif type(selection[message]) == dict or type(selection[message]) == list:
                             if signal_offset in selection[message]:
                                 sig_selected = 1
-
-                    signal_offset += 1
                     
                     if selection == 1 or sig_selected == 1:
                         self.t.change_state(offset, "checked")
+                    
+                    signal_offset += 1
+                    offset += 1
 
             self.t.config(height=message_count - 1)
             self.item_count = offset
