@@ -71,15 +71,16 @@ class SourceHandler:
 
 class CANHandler(SourceHandler):
 
-    def __init__(self, bus = "", veh=""):
+    def __init__(self, channel="can0", bus = "", veh=""):
         self.adapter_type = "socketcan"
         self.bus = bus
         self.veh = veh
+        self.channel = channel
 
 
     def open(self):
         self.log_open()
-        self.can0 = can.interface.Bus(channel = 'can0', bustype = 'socketcan_ctypes')
+        self.can0 = can.interface.Bus(channel = self.channel, bustype = 'socketcan_ctypes')
 
 
     def close(self):

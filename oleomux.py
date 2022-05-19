@@ -9,7 +9,7 @@ from source_handler import CandumpHandler, InvalidFrame, CANHandler, SerialHandl
 from recordclass import recordclass
 
 from functools import partial
-import cantools, pprint, serial, can, csv, numexpr, threading, sys, traceback, time, serial.tools.list_ports
+import cantools, pprint, serial, can, csv, numexpr, threading, sys, traceback, time, serial.tools.list_ports, yaml
 from os import listdir
 from os.path import isfile, join
 
@@ -71,9 +71,9 @@ class oleomux:
     USE_CAN = 1
     USE_SERIAL = 2
 
-    default_can_speed = 250
-    last_can_speed = 250
-    BAUD_RATE = 115200
+    last_can_speed = 0
+
+    cfg_file = "config.yml"
 
     MSGDEF = 1
     SIGDEF = 2
@@ -104,7 +104,23 @@ class oleomux:
     overview_selected_signal = []
     overview_unit_textboxs = []
 
-    
+    configuration = {
+        "logs_dir": "logs/",     # logs/
+        "adapter_type": 2,       # use serial
+        "can_speed": 250,        # 250 kbps
+        "bit_ordering": 2,       # mode CANT
+        "uart_baud": 115200,     # for serial adapter
+        "can_interface": "can0", # for can
+        "tab_space_num": 4,
+        "STRUCT_PREFIX": "ole07_",
+        "FUNC_PARSE_PREFIX": "ole07_parse_",
+        "TYPE_S8": "int8_t ",
+        "TYPE_U8": "uint8_t",
+        "TYPE_S16": "int16_t ",
+        "TYPE_U16": "uint16_t",
+        "TYPE_U32": "uint32_t",
+        "TYPE_S32": "int32_t "
+    }
 
     active_message = 0
     active_message_hex = 0
@@ -115,10 +131,14 @@ class oleomux:
 
 
     def log(self, ma, msg = None):
+        '''
+        Log to the console, and to file
+        '''
         if msg is None:
             print("[OMG] " + str(ma))
         else:
             print(str(ma) + " " + str(msg))
+
 
     def importYAMLfile(self):
         '''
@@ -138,7 +158,11 @@ class oleomux:
         self.log("Loaded " + str(len(self.omgr.messages)) + " messages from YAML file")
         self.reload_internal_from_omgr()
 
+
     def update_progress(self, item_count, index, *largs):
+        '''
+        Update the status bar with how many (index) of item_count have been processed
+        '''
         self.status['text'] = "Processing " + str(index) + " / " + str(item_count)
         self.master.update()
         
@@ -207,7 +231,7 @@ class oleomux:
 
     def exportCaction(self, results):
         '''
-        Actually do the export
+        Actually do the export of C files
         '''
         fname = filedialog.asksaveasfile(title = "Choose filename for export to C...",
                                         filetypes = (("C files", "*.c*"), 
@@ -260,7 +284,7 @@ class oleomux:
         '''
         Export a DBC
         '''
-        olt = oleotree(self.master, self, self.exportDBCchosen, "Choose messages or signals to export to DBC")
+        olt = oleotree(self.master, self, self.exportDBCchosen, "Choose messages or signals to export to DBC", selection=1)
 
     
     def exportDBCchosen(self, results):
@@ -286,14 +310,24 @@ class oleomux:
 
     
     def clean(self):
+        '''
+        Clean the messages stored in the internal DB and UI
+        '''
         self.omgr.clean()
         self.reload_internal_from_omgr()
 
 
     def filter_by_sender(self, *largs):
+        '''
+        Let user choose from a list of sender ECUs
+        '''
         olt = oleotree(self.master, self, self.filter_sender_apply, title="Choose SENDERS to filter by", tree_type="ecu_tx", selection=self.filter_senders)
 
+
     def filter_sender_apply(self, results, *largs):
+        '''
+        Apply the filter of senders
+        '''
         if len(results) == 0:
             return
 
@@ -301,17 +335,29 @@ class oleomux:
         self.log("Filter by sender: " + str(results))
         self.reload_msg_list()
 
+
     def filter_receiver_apply(self, results, *largs):
+        '''
+        Filter by the chosen receivers
+        '''
         if len(results) == 0:
             return
         self.filter_receivers = results
         self.reload_msg_list()
         self.log("Filter by receiver: " + str(results))
 
+
     def filter_by_receiver(self, *largs):
+        '''
+        Let user choose from a list of receiver ECUs
+        '''
         olt = oleotree(self.master, self, self.filter_receiver_apply, title="Choose RECEIVERS to filter by", tree_type="ecu_rx", selection=self.filter_receivers)
 
+
     def clear_filters(self, *largs):
+        '''
+        Clear any filters that have been set, show everything
+        '''
         self.filter_receiver = None
         self.filter_sender = None
         self.reload_msg_list()
@@ -375,21 +421,22 @@ class oleomux:
     
     def bit_display_toggle(self, new_mode):
         '''
-        Swap bit ordering (1.7 -> 1.0 to 1.0 -> 1.7)
+        Swap bit ordering (1.7 -> 1.0 to 1.0 -> 1.7) according to user preference
         '''
         self.bit_display_mode = new_mode
+        self.configuration["bit_ordering"] = new_mode
         self.reload_signal_ui()
 
 
     def log_filter_apply(self, results):
         '''
-        Actually apply result
+        Actually apply result of message filter for logging
         '''
         if len(results) == 0:
             self.log("User chose nothing to store in log > invalid > ignored")
             return
         self.log_filter = results.keys()
-        
+
         if self.source_handler is not None:
             self.source_handler.filter_log = self.log_filter
 
@@ -414,6 +461,7 @@ class oleomux:
             if self.source_handler.adapter_type == "serial":
                 self.log("Request CAN speed to " + str(speed))
                 if not self.source_handler.adapter_configure(speed):
+                    self.configuration["can_speed"] = speed
                     self.canspeed.set(self.last_can_speed)
                 else:
                     self.last_can_speed = speed
@@ -425,10 +473,45 @@ class oleomux:
             self.canspeed.set(self.last_can_speed)
         
 
+    def config_load(self):
+        '''
+        Try to load configuration from file, or use default
+        '''
+        try:
+            f = open(self.cfg_file)
+            f_contents = f.readlines()
+            f_contents = "".join(f_contents)
+            cfg = yaml.safe_load(f_contents)
+            bad_cfg = False
+
+            for key in self.configuration:
+                if key not in cfg:
+                    bad_cfg = True
+            
+            if not bad_cfg:
+                self.configuration = cfg
+                self.last_can_speed = self.configuration["can_speed"]
+                self.log("Load configuration file OK")
+            else:
+                self.log("Failed to load configuration file - using defaults")
+        except:
+            self.log("Configuration file unavailable - using defaults")
+
+
+    def destroyed(self, *largs):
+        '''
+        Called on exit, use to save config file
+        '''
+        try:
+            f = open(self.cfg_file, "w")
+            yaml.dump(self.configuration, f)
+            f.close()
+        except:
+            self.log("Configuration file could not be saved.")
+
+
     # Init window
     def __init__(self, master):
-        self.omgr = oleomgr()
-        self.bit_display_mode = self.omgr.MODE_OLEO
 
         self.active_message = 0
         self.active_message_index = 0
@@ -447,6 +530,12 @@ class oleomux:
 
         self.win_msg_editor = None
         self.win_sig_editor = None
+
+        self.master.bind("<Destroy>",self.destroyed)
+        self.config_load()
+
+        self.omgr = oleomgr(self.configuration)
+        self.bit_display_mode = self.configuration["bit_ordering"]
 
         master.title("OpenLEO CAN database manager")
 
@@ -486,7 +575,7 @@ class oleomux:
         toolsmenu.add_command(label="Load candump log", command=self.loadSim)
         toolsmenu.add_separator()
         self.bit_type = IntVar(master)
-        self.bit_type.set(self.omgr.MODE_OLEO)
+        self.bit_type.set(self.configuration["bit_ordering"])
         toolsmenu.add_radiobutton(label="OpenLEO bit numbering", var=self.bit_type, value=self.omgr.MODE_OLEO, command=partial(self.bit_display_toggle, self.omgr.MODE_OLEO))
         toolsmenu.add_radiobutton(label="Logical bit numbering", var=self.bit_type, value=self.omgr.MODE_CANT, command=partial(self.bit_display_toggle, self.omgr.MODE_CANT))
 
@@ -496,10 +585,10 @@ class oleomux:
 
         self.com_type = Menu(self.menubar)
         self.contype = IntVar(master)
-        self.contype.set(self.USE_CAN)
+        self.contype.set(self.configuration["adapter_type"])
         
         self.canspeed = IntVar(master)
-        self.canspeed.set(self.default_can_speed)
+        self.canspeed.set(self.configuration["can_speed"])
 
         self.com_type.add_radiobutton(label="Serial", var=self.contype, value=self.USE_SERIAL, command=self.SerialEnable)
         self.com_type.add_radiobutton(label="SocketCAN", var=self.contype, value=self.USE_CAN, command=self.CANEnable)
@@ -529,7 +618,8 @@ class oleomux:
         self.serialPort.grid(column=1,row=1)
         self.serialPort.current(0)
         self.serialPort.bind("<<ComboboxSelected>>", self.COMPortChange)
-        self.serialPort['state'] = DISABLED
+        if self.configuration["adapter_type"] != self.USE_SERIAL:
+            self.serialPort['state'] = DISABLED
 
         self.serial_frame.grid(column=2, row=1, columnspan=2)
         self.connex = Button(self.serial_frame, text="Connect", command=self.connexion)
@@ -652,6 +742,9 @@ class oleomux:
 
 
     def COMPortChange(self, *largs):
+        '''
+        Update internally when user changes the com port
+        '''
         self.port = self.com_ports[self.serialPort.current()]
 
 
@@ -714,22 +807,33 @@ class oleomux:
 
 
     def SerialEnable(self):
+        '''
+        Use Serial adapter type
+        '''
         self.serialPort['state'] = NORMAL
         self.conn = self.USE_SERIAL
+        self.configuration['adapter_type'] = self.USE_SERIAL
+
 
     def CANEnable(self):
+        '''
+        Use CAN adapter type
+        '''
         self.serialPort['state'] = DISABLED
         self.conn = self.USE_CAN
+        self.configuration['adapter_type'] = self.USE_CAN
 
-    # Connect/Disconnect from Arduino
+
     def connexion(self):
+        '''
+        Manage connection to different adapter types
+        '''
         if self.conn == self.USE_SERIAL:
             if not self.serial_connex: 
                 try:        
                     self.port = self.com_ports[self.serialPort.current()]
                     print("[SER] Connect to " + self.port)
-                    baud = self.BAUD_RATE
-                    self.source_handler = SerialHandlerNew(self.port, baudrate=baud, bus="", veh="")
+                    self.source_handler = SerialHandlerNew(self.port, baudrate = self.configuration["uart_baud"], bus="", veh="")
                     self.source_handler.open()
                     self.source_handler.start()
 
@@ -748,9 +852,9 @@ class oleomux:
             if not self.can_connex:
                 try:
                     
-                    self.source_handler = CANHandler(bus="", veh="")
+                    self.source_handler = CANHandler(channel = self.configuration["can_interface"], bus="", veh="")
                     self.source_handler.open()
-                    print("[CAN] Interface can0 initialised successfully")
+                    print("[CAN] Interface " + self.configuration["can_interface"] + " initialised successfully")
                     self.can_connex = True
                     self.startThread()
                     
@@ -760,6 +864,7 @@ class oleomux:
 
         else:
             print("[APP] No communication configured")
+
 
     def parse_can_data(self):
         '''

@@ -16,26 +16,26 @@ Copyright (c) 2022 - OpenLEO.org / lorddevereux
 
 class oleomgr:
 
-    STRUCT_PREFIX = "ole07_"
-    FUNC_PARSE_PREFIX = "ole07_parse_"
-    TYPE_S8 = "int8_t "
-    TYPE_U8 = "uint8_t"
-    TYPE_S16 = "int16_t "
-    TYPE_U16 = "uint16_t"
-    TYPE_U32 = "uint32_t"
-    TYPE_S32 = "int32_t "
-    TAB = "    "
+    configuration = {}
+    TAB = ""
     MODE_OLEO = 1           # 1.7 1.6 1.5
     MODE_CANT = 2           # 1.0 1.1 1.2
 
-    def __init__(self):
+    def __init__(self, config):
         self.messages = OrderedDict()
+        self.configuration = config
+
+        for i in range(self.configuration["tab_space_num"]):
+            self.TAB = self.TAB + " "
+
 
     def log(self, msg):
         print("[LOG] " + str(msg))
 
+
     def to_hex(self, raw_val, lng=3):
         return "{0:0{1}x}".format(raw_val, lng).upper()
+
 
     def bitmask(self, bit, length = 1, lng = 8):
         '''
@@ -51,6 +51,7 @@ class oleomgr:
                 out = out + "0"
 
         return out
+
 
     def endian_translate(self, start):
         '''
@@ -540,7 +541,7 @@ class oleomgr:
                 if self.messages[message].frame_id not in include_list:
                     continue
 
-            out.append("typedef struct " + self.STRUCT_PREFIX + self.messages[message].name.lower() + "{")
+            out.append("typedef struct " + self.configuration['STRUCT_PREFIX'] + self.messages[message].name.lower() + "{")
 
             signal_offset = 0
             for signal in self.messages[message].signals:
@@ -557,23 +558,23 @@ class oleomgr:
 
                 if signal.length < 8:
                     if signal.is_signed:
-                        out.append(self.TAB + self.TYPE_S8 + " " + signal.name + ";")
+                        out.append(self.TAB + self.configuration['TYPE_S8'] + " " + signal.name + ";")
                     else:
-                        out.append(self.TAB + self.TYPE_U8 + " " + signal.name + ";")
+                        out.append(self.TAB + self.configuration['TYPE_U8'] + " " + signal.name + ";")
                 
                 elif signal.length > 8 and signal.length <= 16:
                     if signal.is_signed:
-                        out.append(self.TAB + self.TYPE_S16 + " " + signal.name + ";")
+                        out.append(self.TAB + self.configuration['TYPE_S16'] + " " + signal.name + ";")
                     else:
-                        out.append(self.TAB + self.TYPE_U16 + " " + signal.name + ";")
+                        out.append(self.TAB + self.configuration['TYPE_U16'] + " " + signal.name + ";")
 
                 elif signal.length > 16 and signal.length <= 32:
                     if signal.is_signed:
-                        out.append(self.TAB + self.TYPE_S32 + " " + signal.name + ";")
+                        out.append(self.TAB + self.configuration['TYPE_S32'] + " " + signal.name + ";")
                     else:
-                        out.append(self.TAB + self.TYPE_U32 + " " + signal.name + ";")
+                        out.append(self.TAB + self.configuration['TYPE_U32'] + " " + signal.name + ";")
 
-            out.append("} " + self.STRUCT_PREFIX + self.messages[message].name.lower() + "; ")
+            out.append("} " + self.configuration['STRUCT_PREFIX'] + self.messages[message].name.lower() + "; ")
             out.append("")
 
         for line in defines:
@@ -609,9 +610,9 @@ class oleomgr:
                 if self.messages[message].frame_id not in include_list:
                     continue
 
-            out_h.append("void " + self.FUNC_PARSE_PREFIX + self.messages[message].name.lower() + "(can_msg* msg, " + self.STRUCT_PREFIX + self.messages[message].name.lower() + "* ptr);")
+            out_h.append("void " + self.configuration['FUNC_PARSE_PREFIX'] + self.messages[message].name.lower() + "(can_msg* msg, " + self.configuration['STRUCT_PREFIX'] + self.messages[message].name.lower() + "* ptr);")
 
-            out.append("void " + self.FUNC_PARSE_PREFIX + self.messages[message].name.lower() + "(can_msg* msg, " + self.STRUCT_PREFIX + self.messages[message].name.lower() + "* ptr) {")
+            out.append("void " + self.configuration['FUNC_PARSE_PREFIX'] + self.messages[message].name.lower() + "(can_msg* msg, " + self.configuration['STRUCT_PREFIX'] + self.messages[message].name.lower() + "* ptr) {")
             out.append("")
 
             signal_offset = 0

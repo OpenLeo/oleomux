@@ -23,8 +23,6 @@ class oleotree:
         self.tree_type = tree_type
         self.items = []
 
-        print(selection)
-
         if len(self.owner.omgr.messages) == 0:
             return
 
@@ -131,6 +129,9 @@ class oleotree:
             self.items = items
 
         frame_a = Frame(self.win)
+
+
+        
 
         if selection == 1:
             self.select_button = Button(frame_a, text="Deselect all", command=self.toggle_select)
