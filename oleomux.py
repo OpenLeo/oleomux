@@ -5,7 +5,7 @@ from typing import OrderedDict
 
 
 
-from source_handler import CandumpHandler, InvalidFrame, CANHandler, SerialHandlerNew, ArdLogHandler
+from source_handler import CanPrintHandler, InvalidFrame, CANHandler, SerialHandlerNew, ArdLogHandler
 from recordclass import recordclass
 
 from functools import partial
@@ -280,7 +280,7 @@ class oleomux:
                                                                     "*.dbc*"), 
                                                                 ("all files", 
                                                                     "*.*"))) 
-        if f == ():
+        if f == () or f == None:
             return
 
         if not self.omgr.import_from_dbc(f):
@@ -602,7 +602,7 @@ class oleomux:
         #self.menubar.add_command(label="Load CAN Map", command=self.loadCSV)  
         toolsmenu.add_command(label="Clear loaded messages", command=self.clean)  
         toolsmenu.add_command(label="Load Oleomux CAN log", command=self.loadSim)
-        toolsmenu.add_command(label="Load candump log", command=self.loadSimCanDump)
+        toolsmenu.add_command(label="Load candump console log", command=self.loadSimCanDump)
         toolsmenu.add_separator()
         self.bit_type = IntVar(master)
         self.bit_type.set(self.configuration["bit_ordering"])
@@ -994,7 +994,7 @@ class oleomux:
                 return
             else:
                 self.sim_ok = True
-                self.source_handler = CandumpHandler(filename, self)
+                self.source_handler = CanPrintHandler(filename, self)
                 self.status['text'] = "Simulation file loaded"
         except:
             print("[SIM] No file loaded")
@@ -1041,7 +1041,7 @@ class oleomux:
                 return
 
             self.log("Starting new thread")
-            self.source_handler.open(bus="")
+            self.source_handler.open()
             self.simStart.configure(text="||")
             self.startThread()
             stop_reading.clear()
@@ -1056,7 +1056,7 @@ class oleomux:
         '''
         Start the reading background thread
         '''
-        if self.reading_thread != None:
+        if self.reading_thread is None:
             self.reading_thread = None
             self.reading_thread = threading.Thread(target=reading_loop, args=(self.source_handler,), daemon=True)
             self.reading_thread.start()
@@ -1216,12 +1216,16 @@ class oleomux:
 
     # get an integer value
     def can_to_int(self, can, start, length):
-        start = self.omgr.endian_translate(start)
-        f = ""
-        for x in range(start, start+length):
-            #print(x, len(can))
-            f = f + str(can[x])
-        return int(f, 2)
+        try:
+            start = self.omgr.endian_translate(start)
+            f = ""
+            for x in range(start, start+length):
+                #print(x, len(can))
+                f = f + str(can[x])
+            return int(f, 2)
+        except:
+            self.log("DMP", str(traceback.format_exc()))
+            self.log("can = " + str(can) + ", x = " + str(x) + ", str = " + str(start) + ", len = " + str(length))
 
 
     # convert to ASCII of each byte
@@ -1639,9 +1643,10 @@ def reading_loop(source_handler):
                 if not result:
                     continue
                 frame_id, data = result
-                #print(frame_id)
+                print(frame_id)
             except InvalidFrame:
                 print("[CAN] Invalid frame encountered")
+                print("[DMP]", str(traceback.format_exc()))
                 continue
             except EOFError:
                 break
