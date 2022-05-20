@@ -905,54 +905,67 @@ class oleomux:
         
         Also prompt the overview UI to update
         '''
-        #try:
-        if self.serial_connex or self.can_connex:
-            if not self.reading_thread.is_alive():
-                self.status['text'] = "Processing of data crashed. See logfile"
-                self.serial_connex = False
-                self.can_connex = False
-                self.connex.configure(text="Connexion")
-                self.simStart.configure(text=">")
-                self.master.after(50, self.parse_can_data)
-                return
+        try:
+            if self.serial_connex or self.can_connex:
+                if eof_data.is_set():
+                    self.status['text'] = "Simulation finished, reload file to start again"
+                    stop_reading.clear()
+                    eof_data.clear()
+                    self.simStart.configure(text=">")
+                    self.can_connex = False
+                    self.reading_thread = None
+                    self.log("Simulation end of file. Reload to start again")
+                    self.master.after(50, self.parse_can_data)
+                    return
 
-            with can_messages_lock:
-                # update the overview window if needed
-                #if not self.winView == None:
-                    # todo needs a separate can_flags
-                    #self.winViewUpdateFields()
 
-                if self.active_message_hex in can_flags:
-                    if can_flags[self.active_message_hex]:
+                if not self.reading_thread.is_alive():
+                    self.status['text'] = "Processing of data crashed. See logfile"
+                    self.serial_connex = False
+                    self.can_connex = False
+                    self.connex.configure(text="Connexion")
+                    self.simStart.configure(text=">")
+                    self.master.after(50, self.parse_can_data)
+                    return
 
-                        msg = can_messages[self.active_message_hex]
-                        self.log("Update: " + str(self.active_message_hex))
-                        for p in self.canFields:
-                            p.update(msg)
+                with can_messages_lock:
+                    # update the overview window if needed
+                    #if not self.winView == None:
+                        # todo needs a separate can_flags
+                        #self.winViewUpdateFields()
 
-                        can_flags[self.active_message_hex] = False
+                    if self.active_message_hex in can_flags:
+                        if can_flags[self.active_message_hex]:
 
-                        # Update binary and hex representations
-                        z = 0
-                        b = 0
-                        buf = ""
-                        buf2 = ""
-                        for x in msg:
-                            buf = buf + str(x)
-                            buf2 = buf2 + str(x)
-                            z = z + 1
-                            if z == 8:
-                                self.lab_bin[b]["text"] = buf
-                                self.lab_hex[b]["text"] = str(hex(int(buf2, 2)))
-                                buf = ""
-                                buf2 = ""
-                                z = 0
-                                b = b+1
+                            msg = can_messages[self.active_message_hex]
+                            self.log("Update: " + str(self.active_message_hex))
+                            for p in self.canFields:
+                                p.update(msg)
 
-        self.master.after(50, self.parse_can_data)
-        #except Exception as e:
-        #    print("[CRD] Exception in update loop: " + str(e))
-        #    self.master.after(2, self.readSerial)
+                            can_flags[self.active_message_hex] = False
+
+                            # Update binary and hex representations
+                            z = 0
+                            b = 0
+                            buf = ""
+                            buf2 = ""
+                            for x in msg:
+                                buf = buf + str(x)
+                                buf2 = buf2 + str(x)
+                                z = z + 1
+                                if z == 8:
+                                    self.lab_bin[b]["text"] = buf
+                                    self.lab_hex[b]["text"] = str(hex(int(buf2, 2)))
+                                    buf = ""
+                                    buf2 = ""
+                                    z = 0
+                                    b = b+1
+
+            self.master.after(50, self.parse_can_data)
+        except Exception as e:
+            self.log("CRD", "Exception in update loop")
+            self.log("DMP", str(traceback.format_exc()))
+            self.master.after(1000, self.parse_can_data)
 
 
     def resetStatus(self):
@@ -1059,7 +1072,7 @@ class oleomux:
         '''
         if self.reading_thread is None:
             self.reading_thread = None
-            self.reading_thread = threading.Thread(target=reading_loop, args=(self.source_handler,), daemon=True)
+            self.reading_thread = threading.Thread(target=reading_loop, args=(self, self.source_handler), daemon=True)
             self.reading_thread.start()
             print("[THR] Started reading thread")
 
@@ -1067,7 +1080,7 @@ class oleomux:
             print("[THR] Reading thread is already running, no action taken")
         else:
             self.reading_thread = None
-            self.reading_thread = threading.Thread(target=reading_loop, args=(self.source_handler,), daemon=True)
+            self.reading_thread = threading.Thread(target=reading_loop, args=(self,self.source_handler), daemon=True)
             self.reading_thread.start()
             print("[THR] Re-created reading thread")
 
@@ -1380,7 +1393,19 @@ class oleomux:
         '''
             # math equation 
         f = self.can_to_int(msg, self.omgr.messages[mid].signals[sid].start, self.omgr.messages[mid].signals[sid].length)
+        lenby = self.omgr.messages[mid].signals[sid].length / 8
+
+        # handle signed values
+        if self.omgr.messages[mid].signals[sid].is_signed:
+            if lenby == 1:
+                if f > 127:
+                    f = f - 256
+            elif lenby == 2:
+                if f > 32767:
+                    f = f - 65536
+                    
         calculation = self.omgr.messages[mid].signals[sid].scale * f + self.omgr.messages[mid].signals[sid].offset
+        calculation = round(calculation, 2)
 
         if self.omgr.messages[mid].signals[sid].choices is not None:
             if calculation in self.omgr.messages[mid].signals[sid].choices:
@@ -1634,6 +1659,7 @@ class oleomux:
 
 should_redraw = threading.Event()
 stop_reading = threading.Event()
+eof_data = threading.Event()
 
 can_messages = {}
 can_flags = {}
@@ -1651,34 +1677,42 @@ def can_to_bin(data):
     
     return binstr
 
-def reading_loop(source_handler):
+def reading_loop(parent, source_handler):
     """Background thread for reading."""
-    #try:
-    while 1:
-        while not stop_reading.is_set():
-            try:
-                result = source_handler.get_message()
-                if not result:
+    try:
+        eof_data.clear()
+
+        while 1:
+            while not stop_reading.is_set():
+                try:
+                    result = source_handler.get_message()
+                    if not result:
+                        continue
+                    if result == -1:
+                        # end of file
+                        eof_data.set()
+                        return
+
+                    frame_id, data = result
+                    print(frame_id)
+                except InvalidFrame:
+                    print("[CAN] Invalid frame encountered")
+                    print("[DMP]", str(traceback.format_exc()))
                     continue
-                frame_id, data = result
-                print(frame_id)
-            except InvalidFrame:
-                print("[CAN] Invalid frame encountered")
-                print("[DMP]", str(traceback.format_exc()))
-                continue
-            except EOFError:
-                break
+                except EOFError:
+                    break
 
-            # Add the frame to the can_messages dict and flag that it changed
-            with can_messages_lock:
-                can_messages[frame_id] = can_to_bin(data)
-                can_flags[frame_id] = True
+                # Add the frame to the can_messages dict and flag that it changed
+                with can_messages_lock:
+                    can_messages[frame_id] = can_to_bin(data)
+                    can_flags[frame_id] = True
 
-        time.sleep(0.2)
+            time.sleep(0.2)
 
-    #except:
-    #    thread_crashed = True
-     #   print("[CAN] Reading thread exited")
+    except:
+        eof_data.set()
+        parent.log("CAN", str(traceback.format_exc()))
+        parent.log("CAN", "Reading thread exited")
 
     
 

@@ -1,4 +1,5 @@
 from binascii import unhexlify
+from tkinter import E
 import can, csv, os, serial, time, re, datetime, traceback, threading
 
 
@@ -379,7 +380,11 @@ class ArdLogHandler(SourceHandler):
     def get_message(self):
         # introduce a fake message delay
         time.sleep(self.owner.simDelayMs/1000.0)
-        line = next(self.f)
+        
+        try:
+            line = next(self.f)
+        except:
+            return -1
 
         if self.is_timestamped == None:
             if len(line[0]) > 4:
@@ -429,7 +434,7 @@ class CandumpHandler(SourceHandler):
         time.sleep(self.owner.simDelayMs/1000.0)
         line = self.file_object.readline()
         if line == '':
-            raise EOFError
+            return -1
         return self._parse_from_candump(line)
 
     @classmethod
@@ -479,7 +484,7 @@ class CanPrintHandler(SourceHandler):
         time.sleep(self.owner.simDelayMs/1000.0)
         line = self.file_object.readline()
         if line == '':
-            raise EOFError
+            return -1
         return self._parse_from_candump(line)
 
     @classmethod
