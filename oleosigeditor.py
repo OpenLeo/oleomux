@@ -62,6 +62,7 @@ class signal_editor:
             self.svs["receivers"] = StringVar(value=",".join(sig.receivers))
             self.svs["choices"] = self.app.omgr.txt_choices_encode(sig)
             self.svs["units"] = StringVar(value=sig.unit)
+            self.svs["signed"] = IntVar(value=sig.is_signed)
 
             self.lbl.append(Label(self.win, text="Bits"))
             self.field.append(Entry(self.win, text = self.svs["bits"]))
@@ -94,6 +95,9 @@ class signal_editor:
 
             self.lbl.append(Label(self.win, text="Max"))
             self.field.append(Spinbox(self.win, text = self.svs["max"]))
+
+            self.lbl.append(Label(self.win, text="Signed"))
+            self.field.append(Spinbox(self.win, text = self.svs["signed"], from_=0, to=1))
 
             self.lbl.append(Label(self.win, text="Factor"))
             self.field.append(Spinbox(self.win, text = self.svs["factor"]))

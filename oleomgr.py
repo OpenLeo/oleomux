@@ -408,6 +408,7 @@ class oleomgr:
                 yaml_tree[id]["signals"][signal.name] = {
                     "bits": self.yml_bits_encode(signal),
                     #"byte_order": 'big_endian',
+                    "is_signed": signal.is_signed,
                     "comment": self.yml_comment_encode(signal.comment),
                     "min": signal.minimum,
                     "max": signal.maximum,
