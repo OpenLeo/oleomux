@@ -1237,6 +1237,7 @@ class oleomux:
         
         try:
             self.omgr.messages[mid].signals.pop(sid)
+            self.reload_signal_ui()
         except:
             self.log("Could not delete signal " + str(mid) + " , " + str(sid))
             messagebox.showerror(title="Sacre bleu", message="Failed to delete signal")
