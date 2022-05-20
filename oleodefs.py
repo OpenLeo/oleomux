@@ -46,7 +46,7 @@ class CANDef:
         self.unit.configure(disabledbackground="white", disabledforeground="black", state='readonly')
 
         self.min = Entry(self.owner.scrollable_frame, width=8)
-        self.max = Entry(self.owner.scrollable_frame, width=8, state='readonly')
+        self.max = Entry(self.owner.scrollable_frame, width=8)
 
         if self.owner.omgr.messages[mid].signals[sid].minimum is not None:
             self.min.insert(0, self.owner.omgr.messages[mid].signals[sid].minimum)   

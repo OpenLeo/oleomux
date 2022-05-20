@@ -176,7 +176,8 @@ class signal_editor:
         if len(choices) == 0:
             return
 
-        self.choice_tree.delete(*self.choice_tree.get_children())
+        for item in self.choice_tree.get_children():
+            self.choice_tree.delete(item)
 
         for chc in choices:
             if type(choices[chc]) == NamedSignalValue:
@@ -211,6 +212,7 @@ class signal_editor:
         self.app.omgr.messages[self.mid].signals[self.sid].scale = self.svs["factor"].get()
         self.app.omgr.messages[self.mid].signals[self.sid].offset = self.svs["offset"].get()
         self.app.omgr.messages[self.mid].signals[self.sid].receivers = self.svs["receivers"].get().split(",")
+        self.app.omgr.messages[self.mid].signals[self.sid].is_signed = self.svs["signed"].get()
         # self.app.messages[self.mid].signals[self.sid].choices = xx
 
         self.app.reload_signal_ui()
@@ -353,9 +355,8 @@ class choice_editor:
             self.log("Failed to delete signal choice")
             messagebox.showerror(title="Sacre bleu", message="Failed to delete signal choice")
 
-        self.win.destroy()
-        self.app.reload_signal_ui()
         self.sig_editor.reload_choices()
+        self.win.destroy()
         
     
     def saveclose(self):

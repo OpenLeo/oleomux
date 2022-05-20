@@ -77,6 +77,8 @@ Main functionality todo list
     - if there are spaces in signal names it outputs illegal dbc
 - Check if "is_decimal" is used anywhere
 - Test and fix arduino/socketcan input
+- Replace some 0/1 integers with checkboxes
+- When deleting choices, the last one won't disappear from the treeview (although it is deleted). Reloading window makes it go away
 - More translations and sync up with PSA-RE
 
 

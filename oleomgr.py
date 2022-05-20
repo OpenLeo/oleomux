@@ -43,6 +43,20 @@ class oleomgr:
         return "{0:0{1}x}".format(raw_val, lng).upper()
 
 
+    def dget(self, dic, key, default = 0):
+        '''
+        Safely get a given key from a dictionary
+        or else return a default value
+        '''
+        if type(dic) is not dict:
+            return default
+
+        if key in dic:
+            return dic[key]
+        else:
+            return default
+
+
     def bitmask(self, bit, length = 1, lng = 8):
         '''
         Generate a bitmask for a bit at position bit
@@ -484,17 +498,18 @@ class oleomgr:
                 msg_signals.append(
                     cantools.database.can.Signal(
                         name = signal,
-                        byte_order = 'big_endian', 
+                        byte_order = self.dget(msg["signals"][signal], "endian", "big_endian"), 
                         start = bit_start,
                         length = bit_length,
-                        scale = msg["signals"][signal]["factor"],
-                        offset = msg["signals"][signal]["offset"],
-                        minimum = msg["signals"][signal]["min"],
-                        maximum = msg["signals"][signal]["max"],
-                        unit = msg["signals"][signal]["units"],
-                        choices = msg["signals"][signal]["values"],
-                        receivers = msg["receivers"],
-                        comment = self.yml_comment_decode(msg["signals"][signal]["comment"])
+                        scale = self.dget(msg["signals"][signal], "factor", 1),
+                        offset = self.dget(msg["signals"][signal], "offset", 0),
+                        is_signed = self.dget(msg["signals"][signal], "is_signed", 0),
+                        minimum = self.dget(msg["signals"][signal], "min", None),
+                        maximum = self.dget(msg["signals"][signal], "max", None),
+                        unit = self.dget(msg["signals"][signal], "units", ""),
+                        choices = self.dget(msg["signals"][signal], "values", []),
+                        receivers = self.dget(msg["signals"][signal], "receivers", None),
+                        comment = self.yml_comment_decode(self.dget(msg["signals"][signal], "comment", ""))
                     )
                 )
 
@@ -503,11 +518,11 @@ class oleomgr:
                 frame_id = int(msg["id"], 16),
                 is_extended_frame = False,
                 name = msg["name"],
-                length = msg["length"],
+                length = self.dget(msg, "length", 8),
                 signals = msg_signals,
                 comment = self.yml_comment_decode(msg["comment"]),
-                senders = msg["senders"],
-                cycle_time = msg["periodicity"]
+                senders = self.dget(msg, "senders", 8),
+                cycle_time = self.dget(msg, "periodicity", None)
             )
 
             if callback is not None:
