@@ -1199,8 +1199,11 @@ class oleomux:
                 self.win_sig_editor.win.destroy()
         self.win_sig_editor = signal_editor(self.master, self, "new message", self.active_message, len(self.omgr.messages[self.active_message].signals) - 1)
     
+    
     def edit_signal(self, mid, sid):
-        
+        '''
+        Open signal editor window
+        '''
         if self.win_sig_editor is not None:
             if self.win_sig_editor.created == 1:
                 if self.win_sig_editor.mid == mid and self.win_sig_editor.sid == sid:
@@ -1212,7 +1215,19 @@ class oleomux:
 
 
     def delete_signal(self, mid, sid):
-        pass
+        '''
+        Remove signal from db
+        '''
+        if self.win_sig_editor is not None:
+            if self.win_sig_editor.created == 1:
+                if self.win_sig_editor.mid == mid and self.win_sig_editor.sid == sid:
+                    self.win_sig_editor.win.destroy()
+        
+        try:
+            self.omgr.messages[mid].signals.pop(sid)
+        except:
+            self.log("Could not delete signal " + str(mid) + " , " + str(sid))
+            messagebox.showerror(title="Sacre bleu", message="Failed to delete signal")
 
 
     # get an integer value

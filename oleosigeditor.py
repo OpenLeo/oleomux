@@ -148,8 +148,15 @@ class signal_editor:
         Open the signal choice editor
         '''
         clicked = self.choice_tree.identify('item',event.x,event.y)
+
         if clicked == None or clicked == "":
+            # make a new one
+            new_choice = len(self.app.omgr.messages[self.mid].signals[self.sid].choices)
+            self.app.omgr.messages[self.mid].signals[self.sid].choices[new_choice] = NamedSignalValue(new_choice, "New choice " + str(new_choice), {})
+            self.reload_choices()
+            self.choice_editor = choice_editor(self.master, self.app, self, "Edit new choice value", self.mid, self.sid, new_choice)
             return
+
         cid = int(clicked) - 1
         self.choice_editor = choice_editor(self.master, self.app, self, str(self.app.omgr.messages[self.mid].signals[self.sid].choices[cid]), self.mid, self.sid, cid)
 
@@ -291,6 +298,8 @@ class choice_editor:
                 self.field[cnt - 2].grid(sticky="W", row = cnt, column = 2)
                 cnt += 1
 
+            delete_btn = Button(self.win, text="Delete", command=self.delete_choice)
+            delete_btn.grid(row=cnt, column=1, columnspan=1)
             saveclose = Button(self.win, text="Save & Close", command=self.saveclose)
             saveclose.grid(row=cnt, column=2, columnspan=1)
             self.win.grid_columnconfigure(1, minsize=120)
@@ -326,6 +335,21 @@ class choice_editor:
 
         self.app.omgr.messages[self.mid].signals[self.sid].choices[self.cid].comments = comments_joined
 
+        self.app.reload_signal_ui()
+        self.sig_editor.reload_choices()
+
+
+    def delete_choice(self):
+        '''
+        Remove the choice
+        '''
+        try:
+            self.app.omgr.messages[self.mid].signals[self.sid].choices.pop(self.cid)
+        except:
+            self.log("Failed to delete signal choice")
+            messagebox.showerror(title="Sacre bleu", message="Failed to delete signal choice")
+
+        self.win.destroy()
         self.app.reload_signal_ui()
         self.sig_editor.reload_choices()
         
