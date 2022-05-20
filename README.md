@@ -75,9 +75,7 @@ Main functionality todo list
 - Fix cantools dbc output code
     - if there is no sender/receivers then it outputs illegal dbc
     - if there are spaces in signal names it outputs illegal dbc
-- Once a log file ends the thread gets stuck - need a way to reboot it
-- Overview fields needs a separate "on-change" flag list
-- Fix bug causing live data to no longer show up in some situations - seems FIXED - check steering volant on CONF
+- Check if "is_decimal" is used anywhere
 - Test and fix arduino/socketcan input
 - More translations and sync up with PSA-RE
 

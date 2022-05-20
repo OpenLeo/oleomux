@@ -930,9 +930,8 @@ class oleomux:
 
                 with can_messages_lock:
                     # update the overview window if needed
-                    #if not self.winView == None:
-                        # todo needs a separate can_flags
-                        #self.winViewUpdateFields()
+                    if not self.winView == None:
+                        self.winViewUpdateFields()
 
                     if self.active_message_hex in can_flags:
                         if can_flags[self.active_message_hex]:
@@ -1626,9 +1625,10 @@ class oleomux:
                 # message not been set yet
                 continue
             
-            if row in can_messages:
-                msg = can_messages[row]
-                self.overview_output_svars[ctr].set(self.can_to_formatted(msg, int(row, 16), self.overview_selected_signal[ctr]))
+            if row in can_flags_overview:
+                if can_flags_overview[row]:
+                    self.overview_output_svars[ctr].set(self.can_to_formatted(can_messages[row], int(row, 16), self.overview_selected_signal[ctr]))
+                    can_flags_overview[row] = False
             
             ctr += 1
 
@@ -1663,6 +1663,7 @@ eof_data = threading.Event()
 
 can_messages = {}
 can_flags = {}
+can_flags_overview = {}
 can_messages_lock = threading.Lock()
 
 thread_exception = None
@@ -1706,6 +1707,7 @@ def reading_loop(parent, source_handler):
                 with can_messages_lock:
                     can_messages[frame_id] = can_to_bin(data)
                     can_flags[frame_id] = True
+                    can_flags_overview[frame_id] = True
 
             time.sleep(0.2)
 
