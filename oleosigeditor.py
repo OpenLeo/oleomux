@@ -1,5 +1,5 @@
 from cantools.database.can.signal import NamedSignalValue
-from tkinter import END, Canvas, Scrollbar, Spinbox, Tk, Text, Label, Button, Entry, filedialog, StringVar, Menu, Frame, SUNKEN, W, DISABLED, NORMAL, Toplevel, BooleanVar, IntVar, messagebox
+from tkinter import END, Canvas, Scrollbar, Spinbox, Tk, Text, Label, Button, Entry, filedialog, StringVar, Menu, Frame, SUNKEN, W, DISABLED, NORMAL, Toplevel, BooleanVar, IntVar, DoubleVar, messagebox
 from tkinter.ttk import Combobox, Treeview
 import cantools
 
@@ -55,10 +55,10 @@ class signal_editor:
             self.svs["bits"] = StringVar(value=self.app.omgr.yml_bits_encode(sig, output_mode = self.app.bit_display_mode))
             self.svs["name"] = StringVar(value=sig.name)
             #self.svs["comment"] = sig.comment
-            self.svs["min"] = IntVar(value=sig.minimum)
-            self.svs["max"] = IntVar(value=sig.maximum)
-            self.svs["factor"] = IntVar(value=sig.scale)
-            self.svs["offset"] = IntVar(value=sig.offset)
+            self.svs["min"] = DoubleVar(value=sig.minimum)
+            self.svs["max"] = DoubleVar(value=sig.maximum)
+            self.svs["factor"] = DoubleVar(value=sig.scale)
+            self.svs["offset"] = DoubleVar(value=sig.offset)
             self.svs["receivers"] = StringVar(value=",".join(sig.receivers))
             self.svs["choices"] = self.app.omgr.txt_choices_encode(sig)
             self.svs["units"] = StringVar(value=sig.unit)
