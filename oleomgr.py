@@ -508,7 +508,7 @@ class oleomgr:
                         maximum = self.dget(msg["signals"][signal], "max", None),
                         unit = self.dget(msg["signals"][signal], "units", ""),
                         choices = self.dget(msg["signals"][signal], "values", []),
-                        receivers = self.dget(msg["signals"][signal], "receivers", None),
+                        receivers = self.dget(msg, "receivers", None),
                         comment = self.yml_comment_decode(self.dget(msg["signals"][signal], "comment", ""))
                     )
                 )
