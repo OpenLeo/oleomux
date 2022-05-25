@@ -209,7 +209,7 @@ class oleomux:
             if fd == () or fd is None:
                 return
 
-            result = self.omgr.export_to_yaml(fd, results)
+            result = self.omgr.export_to_yaml(fd, results, callback = partial(self.update_progress, len(results)))
             if result:
                 messagebox.showinfo(title="OK", message="Export to YAML done!")
             else:
