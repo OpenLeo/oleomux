@@ -1,6 +1,8 @@
 from typing import OrderedDict
 import yaml, sys, math, cantools, pprint, copy, traceback
 from cantools.database.can.signal import NamedSignalValue
+from os import listdir
+from os.path import isfile, join
 
 '''
 OpenLEO database and CAN message generation scripts
@@ -23,11 +25,15 @@ class oleomgr:
 
     def __init__(self, owner, config):
         self.messages = OrderedDict()
-        self.configuration = config
+
+        if config is not None:
+            self.configuration = config
+            for i in range(self.configuration["tab_space_num"]):
+                self.TAB = self.TAB + " "
+
         self.owner = owner
 
-        for i in range(self.configuration["tab_space_num"]):
-            self.TAB = self.TAB + " "
+        
 
 
     def log(self, hdr, msg = None):
@@ -37,6 +43,8 @@ class oleomgr:
                 hdr = "OMG"
                 
             self.owner.log(hdr, msg)
+        else:
+            print(hdr, msg)
 
 
     def to_hex(self, raw_val, lng=3):
@@ -546,7 +554,54 @@ class oleomgr:
             self.check_message_structure()
             return True
         else:
+            self.log("No messages loaded")
             return False
+
+
+    def merge_names_to_existing_yaml(self, base_tree_fldr, trans_tree_fldr, out_fldr):
+        '''
+        This will copy comments and name fields from trans_tree to base_tree
+        Used when bugs are found which have damaged data in base_tree
+        '''
+        file_list = [(base_tree_fldr + "/" + f) for f in listdir(base_tree_fldr) if isfile(join(base_tree_fldr, f))]
+        rslt = self.import_from_yaml(file_list)
+        base = copy.deepcopy(self.messages)
+        self.messages = {}
+        file_list = [(trans_tree_fldr + "/" + f) for f in listdir(trans_tree_fldr) if isfile(join(trans_tree_fldr, f))]
+        rslt = self.import_from_yaml(file_list)
+        trans = copy.deepcopy(self.messages)
+        self.messages = {}
+
+        for msg in base:
+            if msg not in trans:
+                self.log("Message " + str(msg) + " missing from trans tree")
+                continue
+
+            base[msg].name = trans[msg].name
+            base[msg].comment = trans[msg].comment
+
+            if base[msg].signals == None:
+                self.log("Message " + str(msg) + " no signals")
+                continue
+
+            if len(base[msg].signals) != len(trans[msg].signals):
+                self.log("Message " + str(msg) + " signals count mismatch")
+                continue
+
+            sid = 0
+            for signal in base[msg].signals:
+                base[msg].signals[sid].name = trans[msg].signals[sid].name
+                base[msg].signals[sid].comment = trans[msg].signals[sid].comment
+
+                sid += 1
+
+        self.messages = base
+        inc_list = {}
+        for key in base.keys():
+            inc_list[key] = 1
+
+        rslt = self.export_to_yaml(out_fldr, inc_list)
+        self.log("Write result: " + str(rslt))
 
 
     def export_to_struct(self, fname, include_list):
@@ -703,3 +758,7 @@ class oleomgr:
             for signal in message.signals:
                 print(self.to_hex(message.frame_id) + "," + message.name + "," + signal.name)
 
+
+
+#inst = oleomgr(None, None)
+#inst.merge_names_to_existing_yaml("yml/is_dbc_clean", "yml/is_dbc_eng", "yml/is_dbc_merge")
