@@ -391,6 +391,8 @@ class oleomux:
 
         include_filter = True
         ctr = 0
+        new_index = 0
+        
         for message in self.omgr.messages:
             if message == active_index:
                 new_index = ctr
