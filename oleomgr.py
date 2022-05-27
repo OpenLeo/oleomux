@@ -292,9 +292,13 @@ class oleomgr:
                 return False
         self.log("Loaded " + str(len(db.messages)) + " messages")
 
+        added = 0
         for message in db.messages:
             if message.frame_id not in self.messages:
+                added += 1
                 self.messages[message.frame_id] = message
+        
+        self.log("Actually added " + str(added) + " messages")
 
         self.check_message_structure()
         

@@ -280,7 +280,8 @@ class oleomux:
                                                                     "*.dbc*"), 
                                                                 ("all files", 
                                                                     "*.*"))) 
-        if f == () or f == None:
+        if f == () or f == None or f == '':
+            self.log("Nothing selected")
             return
 
         if not self.omgr.import_from_dbc(f):
@@ -381,9 +382,20 @@ class oleomux:
         self.message_names = []
         self.message_ids = []
         self.message_ints = []
+        active_index = 0
+
+        try:
+            active_index = int(self.messageID.get(),16)
+        except:
+            active_index = 0
 
         include_filter = True
+        ctr = 0
         for message in self.omgr.messages:
+            if message == active_index:
+                new_index = ctr
+            ctr += 1
+
             if self.filter_senders is not None:
                 include_filter = False
                 if self.omgr.messages[message].senders is None:
@@ -418,9 +430,13 @@ class oleomux:
         else:
             self.messageType['values'] = ["Choose..."]
             self.messageID['values'] = ["Choose..."]
-            
-        self.messageType.current(0)
-        self.messageID.current(0)
+
+        if active_index == 0:
+            self.messageType.current(0)
+            self.messageID.current(0)
+        else:
+            self.messageID.current(new_index)
+            self.messageType.current(new_index)
 
         if len(self.message_names) > 0:
             self.CANChangeMsgType()
@@ -1545,7 +1561,11 @@ class oleomux:
         j = 0
         for cmb in self.overview_cmbs_messages:
             # save the user selection
-            active_index = cmb.current()
+            try:
+                active_index = cmb.current()
+            except:
+                # can happen if this gets called and the window isn't open
+                return
             current_frame_id = self.message_ids[active_index]
 
             j = 0
