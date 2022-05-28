@@ -244,7 +244,7 @@ class oleomux:
         Actually do the export of C files
         '''
         fname = filedialog.asksaveasfile(title = "Choose filename for export to C...",
-                                        filetypes = (("C files", "*.c*"), 
+                                        filetypes = (("C files", "*.c"), 
                                                      ("all files", "*.*"))) 
         if fname == ():
             return
@@ -268,6 +268,32 @@ class oleomux:
         to choose which ones to export to C
         '''
         olt = oleotree(self.master, self, self.exportCaction, "Choose messages or signals to export to C")
+
+    
+    def generateSignalList(self):
+        olt = oleotree(self.master, self, self.exportSignalList, "Choose messages or signals to export list")
+
+    
+    def exportSignalList(self, results, *largs):
+        '''
+        Export CSV of all signals for overview monitoring
+        '''
+        if len(results) > 0:
+            fd = filedialog.asksaveasfile(title = "Choose filename for export signal list",
+                                        filetypes = (("CSV files", "*.csv"), 
+                                                     ("all files", "*.*"))) 
+            if fd == () or fd is None:
+                return
+
+            result = self.omgr.export_all_signals(fd, results, callback = partial(self.update_progress, len(results)))
+            if result:
+                messagebox.showinfo(title="OK", message="Export signal list done!")
+            else:
+                messagebox.showerror(title="Oh no!", message="The export could not be completed.")
+
+        else:
+            messagebox.showwarning(title="Nope", message="No messages selected for export!")
+            return
         
 
     def importDBC(self):
@@ -598,8 +624,9 @@ class oleomux:
         filemenu.add_command(label="Import YAML (folder)", command=self.importYAMLfolder)
         filemenu.add_command(label="Export YAML (multiple)", command=self.saveYAMLall)
         filemenu.add_command(label="Export YAML (only selected)", command=self.saveYAMLselected)
-        
         filemenu.add_command(label="Export C Code", command=self.exportCoptions)
+        filemenu.add_separator()
+        filemenu.add_command(label="Export list of signals", command=self.generateSignalList)
         self.menubar.add_cascade(label= "File", underline=0, menu= filemenu)
 
         createWin = master.register(self.createOverview)

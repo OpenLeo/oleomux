@@ -1,5 +1,6 @@
+from calendar import c
 from typing import OrderedDict
-import yaml, sys, math, cantools, pprint, copy, traceback
+import yaml, sys, math, cantools, pprint, copy, traceback, csv
 from cantools.database.can.signal import NamedSignalValue
 from os import listdir
 from os.path import isfile, join
@@ -362,6 +363,54 @@ class oleomgr:
                     for choice in signal.choices:
                         if type(signal.choices[choice]) != NamedSignalValue:
                             signal.choices[choice] = NamedSignalValue(choice, signal.choices[choice], "")
+
+    
+    def export_all_signals(self, fname, include_list, comment_src = None, callback = None):
+        '''
+        Export all selected signals to CSV
+        '''
+        ctr = 0
+
+        csvfile = open(fname, 'w', newline='')
+        writer = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+        row = []
+ 
+        for mid in self.messages:
+            message = self.messages[mid]
+            yaml_tree = {}
+
+            if message.frame_id not in include_list:
+                ctr += 1
+                continue
+
+            receivers = []
+
+            signal_offset = 0
+            for signal in message.signals:
+                if include_list is not None:
+                    if message.frame_id not in include_list:
+                        continue
+                    else:
+                        if type(include_list[message.frame_id]) == list:
+                            if signal_offset not in include_list[message.frame_id]:
+                                continue
+                signal_offset += 1
+
+                row.append(self.to_hex(message.frame_id))
+                row.append(message.name)
+                row.append(",".join(message.senders))
+                row.append(signal.name)
+                row.append(self.yml_comment_encode(signal.comment)["name_en"])
+                row.append(self.yml_comment_encode(signal.comment)["comment_en"])
+                writer.writerow(row)
+                row = []        
+
+            ctr += 1
+        
+        csvfile.close()  
+        
+        return True
 
 
     def export_to_yaml(self, fname, include_list, comment_src = None, callback = None):
