@@ -214,7 +214,7 @@ class oleomgr:
             if ";" in signal:
                 comments = signal.split(";")
                 for comment in comments:
-                    csplit = comment.split(":")
+                    csplit = comment.split("=")
                     output[csplit[0]] = csplit[1]
 
                 if src is not None:
@@ -243,7 +243,7 @@ class oleomgr:
 
         else:
             for key in comment:
-                out = out + key + ":" + comment[key] + ";"
+                out = out + key + "=" + comment[key] + ";"
             return out[:-1]
 
 
