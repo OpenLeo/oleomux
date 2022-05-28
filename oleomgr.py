@@ -479,7 +479,11 @@ class oleomgr:
                 if signal.choices is not None:
                     choices_clean = {}
                     for choice in signal.choices:
-                        choices_clean[choice] = str(signal.choices[choice])
+                        comment_enc = {}
+                        comment_enc["comment"] = self.yml_comment_encode(signal.choices[choice].comments)
+                        comment_enc["name"] = str(signal.choices[choice])
+                        choices_clean[choice] = comment_enc
+
                 yaml_tree[id]["signals"][signal.name] = {
                     "bits": self.yml_bits_encode(signal),
                     #"byte_order": 'big_endian',
@@ -532,6 +536,7 @@ class oleomgr:
 
         for file_name in file_list:
             try:
+                self.log("Opening " + str(file_name))
                 f = open(file_name)
                 f_contents = f.readlines()
                 f_contents = "".join(f_contents)
@@ -550,11 +555,22 @@ class oleomgr:
                 self.log("Missing SIGNAL definitions for message " + str(file_name))
             
             for signal in msg["signals"]:
+                print(signal)
                 result = self.yml_bits_decode(msg["signals"][signal]["bits"])
                 if not result:
                     continue
 
                 bit_start, bit_length = result
+
+                # decode comment fields of choices
+                choices = self.dget(msg["signals"][signal], "values", {})
+                choices_loaded = {}
+                if choices is not None:
+                    for choice in choices:
+                        if type(choices[choice]) == dict:
+                            choices_loaded[choice] = NamedSignalValue(value=choice, name=choices[choice]["name"], comments=self.yml_comment_decode(choices[choice]["comment"]))
+                        else:
+                            choices_loaded[choice] = choices[choice]
 
                 msg_signals.append(
                     cantools.database.can.Signal(
@@ -568,7 +584,7 @@ class oleomgr:
                         minimum = self.dget(msg["signals"][signal], "min", None),
                         maximum = self.dget(msg["signals"][signal], "max", None),
                         unit = self.dget(msg["signals"][signal], "units", ""),
-                        choices = self.dget(msg["signals"][signal], "values", []),
+                        choices = choices_loaded,
                         receivers = self.dget(msg, "receivers", None),
                         comment = self.yml_comment_decode(self.dget(msg["signals"][signal], "comment", ""))
                     )
