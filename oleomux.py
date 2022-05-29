@@ -249,15 +249,19 @@ class oleomux:
         if fname == ():
             return
 
-        h_file = str(fname.name).replace(".c", "").split("/")[-1]
+        fname = str(fname.name)
 
-        self.omgr.export_to_struct(h_file, results)
-        self.omgr.export_parser_c(h_file, results)
+        if len(fname) > 3:
+            if fname[-2] == ".c":
+                fname = fname.replace(".c", "")
+
+        self.omgr.export_to_struct(fname, results)
+        self.omgr.export_parser_c(fname, results)
 
         result = True
 
         if result:
-            messagebox.showinfo(title="OK", message="Export done to " + str(h_file))
+            messagebox.showinfo(title="OK", message="Export done to " + str(fname))
         else:
             messagebox.showerror(title="Oh no!", message="The export could not be completed.")
         

@@ -187,6 +187,9 @@ class oleomgr:
 
 
     def yml_comment_encode(self, signal, src = None):
+        '''
+        Extract a string to a comment dict
+        '''
         output = {}
 
         if type(signal) is dict:
@@ -679,17 +682,24 @@ class oleomgr:
 
         TODO:
         - defines need to exclude special characters / be less rubbish
+
+        - use NAME_EN if it exists for signal + message names, else NAME
+        - use NAME if it exists for signal choices and doesn't have spaces, else signal NAME_VALUE
         '''
 
         out = []
         defines = []
+
+        defined = {}
         
         for message in self.messages:
             if include_list is not None:
                 if self.messages[message].frame_id not in include_list:
                     continue
 
-            out.append("typedef struct " + self.configuration['STRUCT_PREFIX'] + self.messages[message].name.lower() + "{")
+            out.append("typedef struct " + self.configuration['STRUCT_PREFIX'] + self.messages[message].name.upper() + "{")
+
+            mid = self.to_hex(message)
 
             signal_offset = 0
             for signal in self.messages[message].signals:
@@ -700,38 +710,58 @@ class oleomgr:
                         continue
                 signal_offset += 1
 
+                chosen_name = signal.name
+                cmt = self.yml_comment_encode(signal.comment)
+                if cmt["name_en"] is not None and " " not in cmt["name_en"] and len(cmt["name_en"]) > 1:
+                    chosen_name = cmt["name_en"].upper()
+
                 if signal.choices is not None:
                     for choice in signal.choices:
-                        defines.append("#define " + signal.name + "_" + str(signal.choices[choice]).upper().replace(" ", "_") + "    " + str(choice))
+                        if " " not in signal.choices[choice].name:
+                            chc_name = (mid + "_" + signal.choices[choice].name).upper()
+                            if chc_name not in defined:
+                                defines.append("#define " + chc_name + "    " + str(choice))
+                                defined[chc_name] = choice
+                            elif defined[chc_name] != choice:
+                                self.log("WARNING: Signal choice value define mismatch: " + str(signal) + " - " + str(chc_name) + " does not match " + str(choice))
+                        else:
+                            chc_name = (mid + "_" + chosen_name + "_" + str(choice)).upper()
+                            if chc_name not in defined:
+                                defines.append("#define " + chc_name + "    " + str(choice))
+                                defined[chc_name] = choice
+                            elif defined[chc_name] != choice:
+                                self.log("WARNING: Signal choice value define mismatch: " + str(signal) + " - " + str(defined[chc_name]) + " does not match " + str(choice))
 
                 if signal.length < 8:
                     if signal.is_signed:
-                        out.append(self.TAB + self.configuration['TYPE_S8'] + " " + signal.name + ";")
+                        out.append(self.TAB + self.configuration['TYPE_S8'] + " " + chosen_name + ";")
                     else:
-                        out.append(self.TAB + self.configuration['TYPE_U8'] + " " + signal.name + ";")
+                        out.append(self.TAB + self.configuration['TYPE_U8'] + " " + chosen_name + ";")
                 
                 elif signal.length > 8 and signal.length <= 16:
                     if signal.is_signed:
-                        out.append(self.TAB + self.configuration['TYPE_S16'] + " " + signal.name + ";")
+                        out.append(self.TAB + self.configuration['TYPE_S16'] + " " + chosen_name + ";")
                     else:
-                        out.append(self.TAB + self.configuration['TYPE_U16'] + " " + signal.name + ";")
+                        out.append(self.TAB + self.configuration['TYPE_U16'] + " " + chosen_name + ";")
 
                 elif signal.length > 16 and signal.length <= 32:
                     if signal.is_signed:
-                        out.append(self.TAB + self.configuration['TYPE_S32'] + " " + signal.name + ";")
+                        out.append(self.TAB + self.configuration['TYPE_S32'] + " " + chosen_name + ";")
                     else:
-                        out.append(self.TAB + self.configuration['TYPE_U32'] + " " + signal.name + ";")
+                        out.append(self.TAB + self.configuration['TYPE_U32'] + " " + chosen_name + ";")
 
-            out.append("} " + self.configuration['STRUCT_PREFIX'] + self.messages[message].name.lower() + "; ")
+            out.append("} " + self.configuration['STRUCT_PREFIX'] + self.messages[message].name.upper() + "; ")
             out.append("")
 
-        for line in defines:
-            print(line)
+        
 
         print()
         print()
         
         with open(fname + '_messages.h', 'w') as f:
+            for line in defines:
+                f.write("%s\n" % line)
+            f.write("\n\n")
             for line in out:
                 f.write("%s\n" % line)
 
@@ -747,10 +777,12 @@ class oleomgr:
         out = []
         out_h = []
 
-        out_h.append('#include "' + fname + '_messages.h"')
+        file_only = fname.split("/")[-1]
+
+        out_h.append('#include "' + file_only + '_messages.h"')
         out_h.append("")
 
-        out.append('#include "' + fname + '.h"')
+        out.append('#include "' + file_only + '.h"')
         out.append("")
         
         for message in self.messages:
@@ -758,9 +790,9 @@ class oleomgr:
                 if self.messages[message].frame_id not in include_list:
                     continue
 
-            out_h.append("void " + self.configuration['FUNC_PARSE_PREFIX'] + self.messages[message].name.lower() + "(can_msg* msg, " + self.configuration['STRUCT_PREFIX'] + self.messages[message].name.lower() + "* ptr);")
+            out_h.append("void " + self.configuration['FUNC_PARSE_PREFIX'] + self.messages[message].name.upper() + "(uint8_t* data, " + self.configuration['STRUCT_PREFIX'] + self.messages[message].name.upper() + "* ptr);")
 
-            out.append("void " + self.configuration['FUNC_PARSE_PREFIX'] + self.messages[message].name.lower() + "(can_msg* msg, " + self.configuration['STRUCT_PREFIX'] + self.messages[message].name.lower() + "* ptr) {")
+            out.append("void " + self.configuration['FUNC_PARSE_PREFIX'] + self.messages[message].name.upper() + "(uint8_t* data, " + self.configuration['STRUCT_PREFIX'] + self.messages[message].name.upper() + "* ptr) {")
             out.append("")
 
             signal_offset = 0
@@ -772,22 +804,27 @@ class oleomgr:
                         continue
                 signal_offset += 1
 
+                chosen_name = signal.name
+                cmt = self.yml_comment_encode(signal.comment)
+                if cmt["name_en"] is not None and " " not in cmt["name_en"] and len(cmt["name_en"]) > 1:
+                    chosen_name = cmt["name_en"].upper()
+
                 bitlen = signal.length
                 start = self.endian_translate(signal.start)
                 byte_start = math.trunc(start / 8)
                 byte_end   = math.floor((start + (signal.length - 1)) / 8)
                 bit_in_byte_start = start - (byte_start * 8)
-                print(signal.name, str(bitlen), str(start), str(bit_in_byte_start))
+                print(chosen_name, str(bitlen), str(start), str(bit_in_byte_start))
 
                 data_assemble = ""
                 byte_this = byte_start
                 bits_left = bitlen
                 
                 while(bits_left > 8):
-                    data_assemble = data_assemble + "msg->data[" + str(byte_this) + "] << " + str(bits_left - 8) + " | "
+                    data_assemble = data_assemble + "data[" + str(byte_this) + "] << " + str(bits_left - 8) + " | "
                     bits_left -= 8
                     byte_this += 1
-                data_assemble = data_assemble + "msg->data[" + str(byte_end) + "]"
+                data_assemble = data_assemble + "data[" + str(byte_end) + "]"
 
                 if bitlen == 8 or bitlen == 16 or bitlen == 24 or bitlen == 32:
                     bitmask = ")"
@@ -804,7 +841,7 @@ class oleomgr:
                         bitmask = bitmask + " - " + str(signal.offset * -1)
                     else:
                         bitmask = bitmask + " + " + str(signal.offset)
-                out.append(self.TAB + "ptr->" + signal.name + " = (((" + data_assemble + ")" + bitmask + ";")        
+                out.append(self.TAB + "ptr->" + chosen_name + " = (((" + data_assemble + ")" + bitmask + ";")        
 
 
             out.append("}")
@@ -830,4 +867,4 @@ class oleomgr:
 
 
 #inst = oleomgr(None, None)
-#inst.merge_names_to_existing_yaml("yml/is_dbc_clean", "yml/is_dbc_eng", "yml/is_dbc_merge")
+#inst.merge_names_to_existing_yaml("../database/04_conf_clean", "../database/04_conf_trans", "../database/04_conf_out")
