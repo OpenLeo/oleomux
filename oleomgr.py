@@ -698,6 +698,10 @@ class oleomgr:
         errors = 0
 
         defined = {}
+
+        out.append("typedef unsigned long int uint32_t;")
+        out.append("typedef unsigned char uint8_t;")
+        out.append("")
         
         for message in self.messages:
             if include_list is not None:
@@ -709,7 +713,7 @@ class oleomgr:
             if cmt["name_en"] is not None and " " not in cmt["name_en"] and len(cmt["name_en"]) > 1:
                 message_name = cmt["name_en"].upper()
 
-            out.append("typedef struct " + self.configuration['STRUCT_PREFIX'] + message_name + "{")
+            out.append("struct " + self.configuration['STRUCT_PREFIX'] + message_name + "{")
 
             mid = self.to_hex(message)
 
@@ -730,7 +734,7 @@ class oleomgr:
                 if signal.choices is not None:
                     for choice in signal.choices:
                         if " " not in signal.choices[choice].name:
-                            chc_name = (mid + "_" + signal.choices[choice].name).upper()
+                            chc_name = ("M_" + mid + "_" + signal.choices[choice].name).upper()
                             if chc_name not in defined:
                                 defines.append("#define " + chc_name + "    " + str(choice))
                                 defined[chc_name] = choice
@@ -738,7 +742,7 @@ class oleomgr:
                                 self.log("WARNING: Signal choice value define mismatch: " + str(signal.name) + " - " + str(chc_name) + " does not match " + str(choice))
                                 errors += 1
                         else:
-                            chc_name = (mid + "_" + chosen_name + "_" + str(choice)).upper()
+                            chc_name = ("M_" + mid + "_" + chosen_name + "_" + str(choice)).upper()
                             if chc_name not in defined:
                                 defines.append("#define " + chc_name + "    " + str(choice))
                                 defined[chc_name] = choice
@@ -822,9 +826,9 @@ class oleomgr:
 
             defines.append("#define MSG_" + message_name + self.TAB + str(message))
 
-            out_h.append("void " + self.configuration['FUNC_PARSE_PREFIX'] + message_name + "(uint8_t* data, " + self.configuration['STRUCT_PREFIX'] + message_name + "* ptr);")
+            out_h.append("void " + self.configuration['FUNC_PARSE_PREFIX'] + message_name + "(uint8_t* data, struct " + self.configuration['STRUCT_PREFIX'] + message_name + "* ptr);")
 
-            out.append("void " + self.configuration['FUNC_PARSE_PREFIX'] + message_name + "(uint8_t* data, " + self.configuration['STRUCT_PREFIX'] + message_name + "* ptr) {")
+            out.append("void " + self.configuration['FUNC_PARSE_PREFIX'] + message_name + "(uint8_t* data, struct " + self.configuration['STRUCT_PREFIX'] + message_name + "* ptr) {")
             out.append("")
 
             signal_offset = 0
@@ -864,10 +868,14 @@ class oleomgr:
                     bitmask = " & " + self.bitmask(bit_in_byte_start, bitlen)
                     if (8 - (bit_in_byte_start + bitlen)) != 0:
                         bitmask = bitmask + ") >> " + str(8 - (bit_in_byte_start + bitlen))
+                    else:
+                        bitmask = bitmask + ")"
+
                 if signal.scale != 1:
                     bitmask = bitmask + ") * " + str(signal.scale)
                 else:
                     bitmask = bitmask + ")"
+
                 if signal.offset != 0:
                     if signal.offset < 0:
                         bitmask = bitmask + " - " + str(signal.offset * -1)
@@ -881,12 +889,12 @@ class oleomgr:
 
             out_sw.append(self.TAB2 + "case MSG_" + message_name + ":")
             out_sw.append(self.TAB3 + "if (" + str(self.messages[message].length) + " == len)")
-            out_sw.append(self.TAB4 + self.configuration['FUNC_PARSE_PREFIX'] + message_name + "(ptr, " + self.configuration['STRUCT_PREFIX'] + message_name + ");")
+            out_sw.append(self.TAB4 + self.configuration['FUNC_PARSE_PREFIX'] + message_name + "(ptr, &" + self.configuration['STRUCT_PREFIX'] + message_name + ");")
             out_sw.append(self.TAB3 + "else")
             out_sw.append(self.TAB4 + "return 2;")
             out_sw.append(self.TAB3 + "return 1;")
         
-        out_sw.append(self.TAB2 + "case default:")
+        out_sw.append(self.TAB2 + "default:")
         out_sw.append(self.TAB3 + "return 0;")
         out_sw.append(self.TAB + "}")
         out_sw.append("}")
