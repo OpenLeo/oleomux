@@ -293,6 +293,8 @@ class oleomux:
             if fd == () or fd is None:
                 return
 
+            fd = fd.name
+
             result = self.omgr.export_all_signals(fd, results, callback = partial(self.update_progress, len(results)))
             if result:
                 messagebox.showinfo(title="OK", message="Export signal list done!")
