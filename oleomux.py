@@ -252,8 +252,8 @@ class oleomux:
         fname = str(fname.name)
 
         if len(fname) > 3:
-            if fname[-2] == ".c":
-                fname = fname.replace(".c", "")
+            if fname[-2:] == ".c":
+                fname = fname[:-2]
 
         err = self.omgr.export_to_struct(fname, results)
         if err > 0:

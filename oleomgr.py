@@ -801,11 +801,12 @@ class oleomgr:
 
         out_h.append('#include "' + file_only + '_messages.h"')
         out_h.append("")
+        out_h.append("uint8_t " + self.configuration['FUNC_PARSE_PREFIX'] + "RAW_CAN(uint32_t id, uint8_t len, uint8_t* ptr);")
 
         out.append('#include "' + file_only + '.h"')
         out.append("")
 
-        out_sw.append("uint8_t " + self.configuration['FUNC_PARSE_PREFIX'] + "_RAW_CAN(uint32_t id, uint8_t len, uint8_t* ptr){")
+        out_sw.append("uint8_t " + self.configuration['FUNC_PARSE_PREFIX'] + "RAW_CAN(uint32_t id, uint8_t len, uint8_t* ptr){")
         out_sw.append(self.TAB + "switch(id){")
         
         
@@ -819,7 +820,7 @@ class oleomgr:
             if cmt["name_en"] is not None and " " not in cmt["name_en"] and len(cmt["name_en"]) > 1:
                 message_name = cmt["name_en"].upper()
 
-            defines.append("#define " + message_name + self.TAB + str(message))
+            defines.append("#define MSG_" + message_name + self.TAB + str(message))
 
             out_h.append("void " + self.configuration['FUNC_PARSE_PREFIX'] + message_name + "(uint8_t* data, " + self.configuration['STRUCT_PREFIX'] + message_name + "* ptr);")
 
@@ -878,7 +879,7 @@ class oleomgr:
             out.append("}")
             out.append("")
 
-            out_sw.append(self.TAB2 + "case " + message_name + ":")
+            out_sw.append(self.TAB2 + "case MSG_" + message_name + ":")
             out_sw.append(self.TAB3 + "if (" + str(self.messages[message].length) + " == len)")
             out_sw.append(self.TAB4 + self.configuration['FUNC_PARSE_PREFIX'] + message_name + "(ptr, " + self.configuration['STRUCT_PREFIX'] + message_name + ");")
             out_sw.append(self.TAB3 + "else")
