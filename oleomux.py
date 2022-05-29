@@ -255,7 +255,11 @@ class oleomux:
             if fname[-2] == ".c":
                 fname = fname.replace(".c", "")
 
-        self.omgr.export_to_struct(fname, results)
+        err = self.omgr.export_to_struct(fname, results)
+        if err > 0:
+            messagebox.showerror(title="Oh no!", message=str(err) + " errors were encountered during export, so it was cancelled - check the log for details")
+            return
+
         self.omgr.export_parser_c(fname, results)
 
         result = True

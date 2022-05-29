@@ -689,6 +689,7 @@ class oleomgr:
 
         out = []
         defines = []
+        errors = 0
 
         defined = {}
         
@@ -723,14 +724,16 @@ class oleomgr:
                                 defines.append("#define " + chc_name + "    " + str(choice))
                                 defined[chc_name] = choice
                             elif defined[chc_name] != choice:
-                                self.log("WARNING: Signal choice value define mismatch: " + str(signal) + " - " + str(chc_name) + " does not match " + str(choice))
+                                self.log("WARNING: Signal choice value define mismatch: " + str(signal.name) + " - " + str(chc_name) + " does not match " + str(choice))
+                                errors += 1
                         else:
                             chc_name = (mid + "_" + chosen_name + "_" + str(choice)).upper()
                             if chc_name not in defined:
                                 defines.append("#define " + chc_name + "    " + str(choice))
                                 defined[chc_name] = choice
                             elif defined[chc_name] != choice:
-                                self.log("WARNING: Signal choice value define mismatch: " + str(signal) + " - " + str(defined[chc_name]) + " does not match " + str(choice))
+                                self.log("WARNING: Signal choice value define mismatch: " + str(signal.name) + " - " + str(defined[chc_name]) + " does not match " + str(choice))
+                                errors += 1
 
                 if signal.length < 8:
                     if signal.is_signed:
@@ -753,6 +756,8 @@ class oleomgr:
             out.append("} " + self.configuration['STRUCT_PREFIX'] + self.messages[message].name.upper() + "; ")
             out.append("")
 
+        if errors > 0:
+            return errors
         
 
         print()
@@ -764,6 +769,8 @@ class oleomgr:
             f.write("\n\n")
             for line in out:
                 f.write("%s\n" % line)
+
+        return 0
 
 
     def export_parser_c(self, fname, include_list):
