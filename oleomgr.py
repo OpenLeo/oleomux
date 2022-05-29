@@ -20,7 +20,10 @@ Copyright (c) 2022 - OpenLEO.org / lorddevereux
 class oleomgr:
 
     configuration = {}
-    TAB = ""
+    TAB = " "
+    TAB2 = "  "
+    TAB3 = "   "
+    TAB4 = "    "
     MODE_OLEO = 1           # 1.7 1.6 1.5
     MODE_CANT = 2           # 1.0 1.1 1.2
 
@@ -31,6 +34,9 @@ class oleomgr:
             self.configuration = config
             for i in range(self.configuration["tab_space_num"]):
                 self.TAB = self.TAB + " "
+            self.TAB2 = self.TAB + self.TAB
+            self.TAB3 = self.TAB2 + self.TAB
+            self.TAB4 = self.TAB2 + self.TAB2
 
         self.owner = owner
 
@@ -698,7 +704,12 @@ class oleomgr:
                 if self.messages[message].frame_id not in include_list:
                     continue
 
-            out.append("typedef struct " + self.configuration['STRUCT_PREFIX'] + self.messages[message].name.upper() + "{")
+            message_name = self.messages[message].name.upper()
+            cmt = self.yml_comment_encode(self.messages[message].comment)
+            if cmt["name_en"] is not None and " " not in cmt["name_en"] and len(cmt["name_en"]) > 1:
+                message_name = cmt["name_en"].upper()
+
+            out.append("typedef struct " + self.configuration['STRUCT_PREFIX'] + message_name + "{")
 
             mid = self.to_hex(message)
 
@@ -753,7 +764,7 @@ class oleomgr:
                     else:
                         out.append(self.TAB + self.configuration['TYPE_U32'] + " " + chosen_name + ";")
 
-            out.append("} " + self.configuration['STRUCT_PREFIX'] + self.messages[message].name.upper() + "; ")
+            out.append("} " + self.configuration['STRUCT_PREFIX'] + message_name + "; ")
             out.append("")
 
         if errors > 0:
@@ -783,6 +794,8 @@ class oleomgr:
 
         out = []
         out_h = []
+        defines = []
+        out_sw = []
 
         file_only = fname.split("/")[-1]
 
@@ -791,15 +804,26 @@ class oleomgr:
 
         out.append('#include "' + file_only + '.h"')
         out.append("")
+
+        out_sw.append("uint8_t " + self.configuration['FUNC_PARSE_PREFIX'] + "_RAW_CAN(uint32_t id, uint8_t len, uint8_t* ptr){")
+        out_sw.append(self.TAB + "switch(id){")
+        
         
         for message in self.messages:
             if include_list is not None:
                 if self.messages[message].frame_id not in include_list:
                     continue
+            
+            message_name = self.messages[message].name.upper()
+            cmt = self.yml_comment_encode(self.messages[message].comment)
+            if cmt["name_en"] is not None and " " not in cmt["name_en"] and len(cmt["name_en"]) > 1:
+                message_name = cmt["name_en"].upper()
 
-            out_h.append("void " + self.configuration['FUNC_PARSE_PREFIX'] + self.messages[message].name.upper() + "(uint8_t* data, " + self.configuration['STRUCT_PREFIX'] + self.messages[message].name.upper() + "* ptr);")
+            defines.append("#define " + message_name + self.TAB + str(message))
 
-            out.append("void " + self.configuration['FUNC_PARSE_PREFIX'] + self.messages[message].name.upper() + "(uint8_t* data, " + self.configuration['STRUCT_PREFIX'] + self.messages[message].name.upper() + "* ptr) {")
+            out_h.append("void " + self.configuration['FUNC_PARSE_PREFIX'] + message_name + "(uint8_t* data, " + self.configuration['STRUCT_PREFIX'] + message_name + "* ptr);")
+
+            out.append("void " + self.configuration['FUNC_PARSE_PREFIX'] + message_name + "(uint8_t* data, " + self.configuration['STRUCT_PREFIX'] + message_name + "* ptr) {")
             out.append("")
 
             signal_offset = 0
@@ -853,14 +877,33 @@ class oleomgr:
 
             out.append("}")
             out.append("")
+
+            out_sw.append(self.TAB2 + "case " + message_name + ":")
+            out_sw.append(self.TAB3 + "if (" + str(self.messages[message].length) + " == len)")
+            out_sw.append(self.TAB4 + self.configuration['FUNC_PARSE_PREFIX'] + message_name + "(ptr, " + self.configuration['STRUCT_PREFIX'] + message_name + ");")
+            out_sw.append(self.TAB3 + "else")
+            out_sw.append(self.TAB4 + "return 2;")
+            out_sw.append(self.TAB3 + "return 1;")
+        
+        out_sw.append(self.TAB2 + "case default:")
+        out_sw.append(self.TAB3 + "return 0;")
+        out_sw.append(self.TAB + "}")
+        out_sw.append("}")
         
         with open(fname + '.h', 'w') as f:
+            for line in defines:
+                f.write("%s\n" % line)
+            f.write("\n\n")
             for line in out_h:
                 f.write("%s\n" % line)
         
         with open(fname + '.c', 'w') as f:
             for line in out:
                 f.write("%s\n" % line)
+            f.write("\n\n")
+            for line in out_sw:
+                f.write("%s\n" % line)
+
 
 
     def get_translation_list(self, tree):

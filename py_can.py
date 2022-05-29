@@ -1,5 +1,10 @@
 import serial, time
 
+'''
+This is a script to test and develop the arduino sketch
+'''
+
+
 def crc8(crc, extract):
     sum = 0;
    
