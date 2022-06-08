@@ -699,8 +699,10 @@ class oleomgr:
 
         defined = {}
 
-        out.append("typedef unsigned long int uint32_t;")
-        out.append("typedef unsigned char uint8_t;")
+        self.log("Exporting " + str(include_list.keys()))
+
+        #out.append("typedef unsigned long int uint32_t;")
+        #out.append("typedef unsigned char uint8_t;")
         out.append("")
         
         for message in self.messages:
@@ -731,6 +733,8 @@ class oleomgr:
                 if cmt["name_en"] is not None and " " not in cmt["name_en"] and len(cmt["name_en"]) > 1:
                     chosen_name = cmt["name_en"].upper()
 
+                
+
                 if signal.choices is not None:
                     for choice in signal.choices:
                         if " " not in signal.choices[choice].name:
@@ -750,23 +754,27 @@ class oleomgr:
                                 self.log("WARNING: Signal choice value define mismatch: " + str(signal.name) + " - " + str(defined[chc_name]) + " does not match " + str(choice))
                                 errors += 1
 
-                if signal.length < 8:
-                    if signal.is_signed:
-                        out.append(self.TAB + self.configuration['TYPE_S8'] + " " + chosen_name + ";")
-                    else:
-                        out.append(self.TAB + self.configuration['TYPE_U8'] + " " + chosen_name + ";")
+                if signal.length <= 8:
+                    max_val = signal.scale * 255
+                elif signal.length <= 16:
+                    max_val = signal.scale * 65535
+                elif signal.length <= 32:
+                    max_val = signal.scale * 1000000
                 
-                elif signal.length > 8 and signal.length <= 16:
-                    if signal.is_signed:
-                        out.append(self.TAB + self.configuration['TYPE_S16'] + " " + chosen_name + ";")
-                    else:
-                        out.append(self.TAB + self.configuration['TYPE_U16'] + " " + chosen_name + ";")
+                if max_val <= 128 and signal.is_signed:
+                    df_type = self.configuration['TYPE_S8']
+                elif max_val <= 255 and not signal.is_signed:
+                    df_type = self.configuration['TYPE_U8']
+                elif max_val <= 32767 and signal.is_signed:
+                    df_type = self.configuration['TYPE_S16']
+                elif max_val <= 65535 and not signal.is_signed:
+                    df_type = self.configuration['TYPE_U16']
+                elif signal.is_signed:
+                    df_type = self.configuration['TYPE_S32']
+                else:
+                    df_type = self.configuration['TYPE_U32']
 
-                elif signal.length > 16 and signal.length <= 32:
-                    if signal.is_signed:
-                        out.append(self.TAB + self.configuration['TYPE_S32'] + " " + chosen_name + ";")
-                    else:
-                        out.append(self.TAB + self.configuration['TYPE_U32'] + " " + chosen_name + ";")
+                out.append(self.TAB + df_type + " " + chosen_name + ";")
 
             out.append("} " + self.configuration['STRUCT_PREFIX'] + message_name + "; ")
             out.append("")
