@@ -259,7 +259,11 @@ class oleomgr:
 
         else:
             for key in comment:
-                out = out + key + "=" + comment[key] + ";"
+                if "comment_" in key:
+                    key_new = key.replace("comment_", "")
+                else:
+                    key_new = key
+                out = out + key_new + "=" + comment[key] + ";"
             return out[:-1]
 
 
@@ -673,8 +677,8 @@ class oleomgr:
 
         for file_name in file_list:
             try:
-                if self.owner.configuration["debug"] == 1:
-                    self.log("Opening " + str(file_name))
+                #if self.owner.configuration["debug"] == 1:
+                #    self.log("Opening " + str(file_name))
                 f = open(file_name)
                 f_contents = f.readlines()
                 f_contents = "".join(f_contents)
@@ -693,8 +697,8 @@ class oleomgr:
                 self.log("Missing SIGNAL definitions for message " + str(file_name))
             
             for signal in msg["signals"]:
-                if self.owner.configuration["debug"] == 1:
-                    print(signal)
+                #if self.owner.configuration["debug"] == 1:
+                #    print(signal)
                 result = self.yml_bits_decode(msg["signals"][signal]["bits"])
                 if not result:
                     continue
@@ -726,8 +730,11 @@ class oleomgr:
                 if stype == "float" or stype == "double":
                     is_signed = True
                     is_decimal = True
-
                 
+                if "is_signed" in msg["signals"][signal]:
+                    if msg["signals"][signal]["is_signed"]:
+                        stype = "sint"
+
                 msg_signals.append(
                     cantools.database.can.Signal(
                         name = signal,
@@ -1204,7 +1211,16 @@ class oleomgr:
             for signal in message.signals:
                 print(self.to_hex(message.frame_id) + "," + message.name + "," + signal.name)
 
+'''
 
+inst = oleomgr(None, None)
+fd = "../database/04conf"
+file_list = [(fd + "/" + f) for f in listdir(fd) if isfile(join(fd, f))]
+inst.import_from_yaml_oleo(file_list)
+lis = {}
+for key in inst.messages:
+    lis[key] = 1
 
-#inst = oleomgr(None, None)
+inst.export_to_yaml_oleo("../database/04conf_new", lis)
+'''
 #inst.merge_names_to_existing_yaml("../database/04_conf_clean", "../database/04_conf_trans", "../database/04_conf_out")
