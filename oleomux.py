@@ -65,7 +65,7 @@ def make_dict(d_src):
 
 
 class oleomux:
-    version = "1.001"
+    version = "1.017"
 
     USE_CAN = 1
     USE_SERIAL = 2
@@ -618,7 +618,7 @@ class oleomux:
 
         pprint.pprint(self.configuration, self.log_fh)
 
-        master.title("OpenLEO CAN database manager")
+        master.title("OpenLEO CAN database manager " + str(self.version))
 
         self.winView = None
         self.menubar = Menu(master)
