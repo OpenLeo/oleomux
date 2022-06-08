@@ -1,4 +1,5 @@
 from calendar import c
+from inspect import trace
 from typing import OrderedDict
 import yaml, sys, math, cantools, pprint, copy, traceback, csv
 from cantools.database.can.signal import NamedSignalValue
@@ -703,10 +704,12 @@ class oleomgr:
                 choices_loaded = {}
                 if choices is not None:
                     for choice in choices:
-                        if type(choices[choice]) == dict:
+                        # new format
+                        if "comment" in choices[choice] and "name" in choices[choice]:
                             choices_loaded[choice] = NamedSignalValue(value=choice, name=choices[choice]["name"], comments=self.yml_comment_decode(choices[choice]["comment"]))
-                        else:
-                            choices_loaded[choice] = choices[choice]
+                        # legacy format
+                        if "en" in choices[choice]:
+                            choices_loaded[choice] = NamedSignalValue(value=choice, name=choices[choice]["en"], comments=self.yml_comment_decode(choices[choice]))
 
                 stype = self.dget(msg["signals"][signal], "type", "uint")
                 is_signed = False
@@ -744,17 +747,25 @@ class oleomgr:
                     )
                 )
 
-            tree[int(msg["id"], 16)] = cantools.database.can.Message(
+            frame_id = msg["id"]
+            if type(frame_id) is not int:
+                frame_id = int(frame_id, 16)
+
+            periodicity = self.dget(msg, "periodicity", None)
+            if type(periodicity) == str:
+                periodicity.replace("ms", "")
+
+            tree[frame_id] = cantools.database.can.Message(
                 strict = False,
-                frame_id = int(msg["id"], 16),
+                frame_id = frame_id,
                 is_extended_frame = False,
                 name = msg["name"],
                 length = self.dget(msg, "length", 8),
                 signals = msg_signals,
                 mtype = self.dget(msg, "type", "can"),
-                comment = self.yml_comment_decode(msg["comment"]),
+                comment = self.yml_comment_decode(self.dget(msg, "comment", "")),
                 senders = self.dget(msg, "senders", 8),
-                cycle_time = self.dget(msg, "periodicity", None)
+                cycle_time = periodicity
             )
 
             if callback is not None:
@@ -789,96 +800,110 @@ class oleomgr:
         tree = {}
         ctr = 1
 
-        for file_name in file_list:
-            try:
-                self.log("Opening " + str(file_name))
-                f = open(file_name)
-                f_contents = f.readlines()
-                f_contents = "".join(f_contents)
-                msg = yaml.safe_load(f_contents)
-            except:
-                msg = None
-                self.log("DMP", str(traceback.format_exc()))
+        try:
 
-            msg_signals = []
+            for file_name in file_list:
+                try:
+                    self.log("Opening " + str(file_name))
+                    f = open(file_name)
+                    f_contents = f.readlines()
+                    f_contents = "".join(f_contents)
+                    msg = yaml.safe_load(f_contents)
+                except:
+                    msg = None
+                    self.log("DMP", str(traceback.format_exc()))
 
-            if msg is None:
-                self.log("Failed to load " + str(file_name))
-                continue
+                msg_signals = []
 
-            if "signals" not in msg:
-                self.log("Missing SIGNAL definitions for message " + str(file_name))
-            
-            for signal in msg["signals"]:
-                print(signal)
-                result = self.yml_bits_decode(msg["signals"][signal]["bits"])
-                if not result:
+                if msg is None:
+                    self.log("Failed to load " + str(file_name))
                     continue
 
-                bit_start, bit_length = result
+                if "signals" not in msg:
+                    self.log("Missing SIGNAL definitions for message " + str(file_name))
+                
+                for signal in msg["signals"]:
+                    print(signal)
+                    result = self.yml_bits_decode(msg["signals"][signal]["bits"])
+                    if not result:
+                        continue
 
-                # decode comment fields of choices
-                choices = self.dget(msg["signals"][signal], "values", {})
-                choices_loaded = {}
-                if choices is not None:
-                    for choice in choices:
-                        if type(choices[choice]) == dict:
-                            choices_loaded[choice] = NamedSignalValue(value=choice, name=choices[choice]["name"], comments=self.yml_comment_decode(choices[choice]["comment"]))
-                        else:
-                            choices_loaded[choice] = choices[choice]
+                    bit_start, bit_length = result
 
-                msg_signals.append(
-                    cantools.database.can.Signal(
-                        name = signal,
-                        byte_order = self.dget(msg["signals"][signal], "endian", "big_endian"), 
-                        start = bit_start,
-                        length = bit_length,
-                        scale = self.dget(msg["signals"][signal], "factor", 1),
-                        offset = self.dget(msg["signals"][signal], "offset", 0),
-                        is_signed = self.dget(msg["signals"][signal], "is_signed", 0),
-                        minimum = self.dget(msg["signals"][signal], "min", None),
-                        maximum = self.dget(msg["signals"][signal], "max", None),
-                        unit = self.dget(msg["signals"][signal], "units", ""),
-                        choices = choices_loaded,
-                        receivers = self.dget(msg, "receivers", None),
-                        comment = self.yml_comment_decode(self.dget(msg["signals"][signal], "comment", ""))
+                    # decode comment fields of choices
+                    choices = self.dget(msg["signals"][signal], "values", {})
+                    choices_loaded = {}
+                    if choices is not None:
+                        for choice in choices:
+                            if type(choices[choice]) == dict:
+                                # new format
+                                if "comment" in choices[choice] and "name" in choices[choice]:
+                                    choices_loaded[choice] = NamedSignalValue(value=choice, name=choices[choice]["name"], comments=self.yml_comment_decode(choices[choice]["comment"]))
+                                # legacy format
+                                if "en" in choices[choice]:
+                                    choices_loaded[choice] = NamedSignalValue(value=choice, name=choices[choice]["en"], comments=self.yml_comment_decode(choices[choice]))
+                            else:
+                                choices_loaded[choice] = choices[choice]
+
+                    msg_signals.append(
+                        cantools.database.can.Signal(
+                            name = signal,
+                            byte_order = self.dget(msg["signals"][signal], "endian", "big_endian"), 
+                            start = bit_start,
+                            length = bit_length,
+                            scale = self.dget(msg["signals"][signal], "factor", 1),
+                            offset = self.dget(msg["signals"][signal], "offset", 0),
+                            is_signed = self.dget(msg["signals"][signal], "is_signed", 0),
+                            minimum = self.dget(msg["signals"][signal], "min", None),
+                            maximum = self.dget(msg["signals"][signal], "max", None),
+                            unit = self.dget(msg["signals"][signal], "units", ""),
+                            choices = choices_loaded,
+                            receivers = self.dget(msg, "receivers", None),
+                            comment = self.yml_comment_decode(self.dget(msg["signals"][signal], "comment", ""))
+                        )
                     )
+
+                frame_id = msg["id"]
+                if type(frame_id) is not int:
+                    frame_id = int(frame_id, 16)
+
+                tree[frame_id] = cantools.database.can.Message(
+                    strict = False,
+                    frame_id = frame_id,
+                    is_extended_frame = False,
+                    name = msg["name"],
+                    length = self.dget(msg, "length", 8),
+                    signals = msg_signals,
+                    comment = self.yml_comment_decode(self.dget(msg, "comment", "")),
+                    senders = self.dget(msg, "senders", 8),
+                    cycle_time = self.dget(msg, "periodicity", None)
                 )
 
-            tree[int(msg["id"], 16)] = cantools.database.can.Message(
-                strict = False,
-                frame_id = int(msg["id"], 16),
-                is_extended_frame = False,
-                name = msg["name"],
-                length = self.dget(msg, "length", 8),
-                signals = msg_signals,
-                comment = self.yml_comment_decode(msg["comment"]),
-                senders = self.dget(msg, "senders", 8),
-                cycle_time = self.dget(msg, "periodicity", None)
-            )
+                if callback is not None:
+                    callback(ctr)
 
-            if callback is not None:
-                callback(ctr)
+                ctr += 1
 
-            ctr += 1
+            self.ignored_messages = 0
+            self.added_messages = 0
 
-        self.ignored_messages = 0
-        self.added_messages = 0
+            for message in tree:
+                if message not in self.messages:
+                    self.added_messages += 1
+                    self.messages[message] = tree[message]
+                else:
+                    self.ignored_messages += 1
+            
+            self.log("Imported " + str(self.added_messages) + " messages, " + str(self.ignored_messages) + " messages already exist and were skipped")
 
-        for message in tree:
-            if message not in self.messages:
-                self.added_messages += 1
-                self.messages[message] = tree[message]
+            if len(self.messages) > 0:
+                self.check_message_structure()
+                return True
             else:
-                self.ignored_messages += 1
-        
-        self.log("Imported " + str(self.added_messages) + " messages, " + str(self.ignored_messages) + " messages already exist and were skipped")
-
-        if len(self.messages) > 0:
-            self.check_message_structure()
-            return True
-        else:
-            self.log("No messages loaded")
+                self.log("No messages loaded")
+                return False
+        except:
+            self.log("DMP", traceback.format_exc())
             return False
 
 

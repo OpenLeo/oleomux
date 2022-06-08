@@ -151,9 +151,9 @@ class message_editor:
 
             self.app.reload_msg_list()
         except:
-            messagebox.showerror("The message could not be saved. Consult the logfile for more details.")
-            self.log("Unable to save message - " + str(self.mid))
-            self.log("DMP", str(traceback.format_exc()))
+            messagebox.showerror(title="Error", message="The message could not be saved. Consult the logfile for more details.")
+            self.app.log("Unable to save message - " + str(self.mid))
+            self.app.log("DMP", str(traceback.format_exc()))
 
     
     def saveclose(self):

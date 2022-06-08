@@ -107,7 +107,7 @@ class oleomux:
         "logs_dir": "logs/",     # logs/
         "adapter_type": 2,       # use serial
         "can_speed": 250,        # 250 kbps
-        "bit_ordering": 2,       # mode CANT
+        "bit_ordering": 1,       # mode CANT
         "uart_baud": 115200,     # for serial adapter
         "can_interface": "can0", # for can
         "tab_space_num": 4,
@@ -185,7 +185,7 @@ class oleomux:
             return
 
         file_list = [(fd + "/" + f) for f in listdir(fd) if isfile(join(fd, f))]
-        self.omgr.import_from_yaml(file_list, callback = partial(self.update_progress, len(file_list)))
+        self.omgr.import_from_yaml_oleo(file_list, callback = partial(self.update_progress, len(file_list)))
         self.reload_internal_from_omgr()
     
 
