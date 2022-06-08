@@ -20,6 +20,9 @@ class SourceHandler:
     filter_log = None
     owner = None
 
+    def to_hex(self, raw_val, lng=3):
+        return "{0:0{1}x}".format(raw_val, lng).upper()
+
     def __init__(self, *largs):
         self.adapter_type = "raw"
 
@@ -41,7 +44,7 @@ class SourceHandler:
 
             if not os.path.exists(directory):
                 os.makedirs(directory)
-            fname = str(datetime.datetime.now().strftime("%d-%m-%Y-%H-%M-%S")) + ".log"
+            fname = "can_logs/" + str(datetime.datetime.now().strftime("%d-%m-%Y-%H-%M-%S")) + ".log"
 
             csvfile = open(fname, 'w', newline='')
             self.cs = csv.writer(csvfile, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
@@ -54,7 +57,7 @@ class SourceHandler:
         """Get CAN id and CAN data.
 
         Returns:
-            A tuple containing the id (int) and data (bytes)
+            A tuple containing the id (as hex) and data (list of ints)
 
         Raises:
             InvalidFrame
@@ -129,19 +132,19 @@ class CANHandler(SourceHandler):
 
 
 class SerialHandlerNew(SourceHandler):
-    def __init__(self, device_name, baudrate=115200, bus="", veh=""):
+    def __init__(self, device_name, baudrate=115200, canspeed=125, bus="", veh=""):
         self.adapter_type = "serial"
         self.device_name = device_name
         self.baudrate = baudrate
         self.serial_device = None
         self.bus = bus      
         self.veh = veh
-        self.can_speed = 250
+        self.can_speed = canspeed
         self.connected = False
         self.packets = []
         self.serial_thread = None
         self.thread_event = threading.Event()
-        self.serial_thread = threading.Thread(target=self.serial_thread_loop, args=(self.thread_event), daemon=True)
+        self.serial_thread = threading.Thread(target=self.serial_thread_loop, args=(self.thread_event,), daemon=True)
 
 
     def open(self):
@@ -149,7 +152,7 @@ class SerialHandlerNew(SourceHandler):
         Open the connection to the serial port
         '''
         self.log_open()
-        self.serial_device = serial.Serial(self.device_name, self.baudrate, timeout=None)
+        self.serial_device = serial.Serial(self.device_name, self.baudrate)
         self.connected = True
         self.thread_event.clear()
 
@@ -247,6 +250,7 @@ class SerialHandlerNew(SourceHandler):
                     self.serial_device.write(bytearray([ord('s')]))
                     self.serial_device.flush()
                     self.serial_device.flushInput()
+                
             
             while stop_event.is_set():
                 time.sleep(0.2)
@@ -278,9 +282,9 @@ class SerialHandlerNew(SourceHandler):
                 # skip logging only if we explicitly filtered it out
                 return id, msg_data
         
-        self.cs.writerow([timestamp, id, inp[4], *msg_data])
+        self.cs.writerow([timestamp, id, *msg_data])
         
-        return id, msg_data
+        return self.to_hex(id), msg_data
 
 
 class SerialHandler(SourceHandler):
@@ -368,14 +372,23 @@ class ArdLogHandler(SourceHandler):
         self.adapter_type = "log"
         self.filename = file_name
         self.owner = owner
+        self.open()
 
-    def open(self, bus=""):
+
+    def open(self, bus="", filename=""):
+        if filename != "":
+            self.filename = filename
         self.csvfile = open(self.filename, newline='')
         self.f = csv.reader(self.csvfile, delimiter=' ', quotechar='|')
         self.is_timestamped = None
         self.is_bussed = None
         self.is_offset = 0
+        self.is_hexa = None
         self.bus = bus
+        self.log("Opening " + str(self.filename))
+
+    def start(self):
+        self.open()
 
     def get_message(self):
         # introduce a fake message delay
@@ -390,24 +403,45 @@ class ArdLogHandler(SourceHandler):
             if len(line[0]) > 4:
                 self.is_timestamped = True
                 self.is_offset = self.is_offset + 1
-                print("[SIM] Selected simulation includes timestamps. Speed set to " + str(self.owner.simDelayMs))               
+                print("[SIM] Selected simulation includes timestamps. Speed set to " + str(self.owner.simDelayMs))      
+
                 if len(line[1]) > 4:
                     self.is_bussed = True
                     self.is_offset = self.is_offset + 1
                     print("[SIM] Selected simulation includes bus information")
                     if self.bus != "" and self.bus != line[1]:
                         print("[SIM] WARNING: Bus definitions loaded do not match the log data")
+                    if "0x" in line[3]:
+                        self.is_hexa = True
+                    else:
+                        self.is_hexa = False
                 else:
                     self.is_bussed = False
+                    if "0x" in line[1]:
+                        self.is_hexa = True
+                    else:
+                        self.is_hexa = False
             else:
+                if "0x" in line[2]:
+                    self.is_hexa = True
+                else:
+                    self.is_hexa = False
                 self.is_timestamped = False
                 print("[SIM] Selected simulation has no timestamps. Delay set to " + str(self.owner.simDelayMs/1000.0))
             
         can_id = line[self.is_offset]
+
+        if not self.is_hexa:
+            can_id = self.to_hex(int(can_id))
         
         bytes = []
         for x in line[(self.is_offset + 1):]:
-            bytes.append(int(x, 16))
+            if x == "":
+                break
+            if self.is_hexa:
+                bytes.append(int(x, 16))
+            else:
+                bytes.append(int(x))
         return can_id, bytes
             
 

@@ -78,7 +78,7 @@ class oleomux:
     SIGDEF = 2
     STADEF = 3
 
-    conn = USE_CAN
+    conn = USE_SERIAL
     messageMap = None
     
     types = []
@@ -106,13 +106,14 @@ class oleomux:
     configuration = {
         "logs_dir": "logs/",     # logs/
         "adapter_type": 2,       # use serial
-        "can_speed": 250,        # 250 kbps
-        "bit_ordering": 1,       # mode CANT
+        "can_speed": 125,        # 250 kbps
+        "bit_ordering": 2,       # mode CANT
         "uart_baud": 115200,     # for serial adapter
         "can_interface": "can0", # for can
         "tab_space_num": 4,
-        "STRUCT_PREFIX": "CONF04_",
-        "FUNC_PARSE_PREFIX": "CONF04_PARSE_",
+        "debug": 0,
+        "STRUCT_PREFIX": "ole07_",
+        "FUNC_PARSE_PREFIX": "ole07_parse_",
         "TYPE_S8": "int8_t ",
         "TYPE_U8": "uint8_t",
         "TYPE_S16": "int16_t ",
@@ -918,7 +919,7 @@ class oleomux:
                 try:        
                     self.port = self.com_ports[self.serialPort.current()]
                     print("[SER] Connect to " + self.port)
-                    self.source_handler = SerialHandlerNew(self.port, baudrate = self.configuration["uart_baud"], bus="", veh="")
+                    self.source_handler = SerialHandlerNew(self.port, baudrate = self.configuration["uart_baud"], canspeed=self.canspeed.get(), bus="", veh="")
                     self.source_handler.open()
                     self.source_handler.start()
 
@@ -1041,8 +1042,12 @@ class oleomux:
                 return
             else:
                 self.sim_ok = True
-                self.source_handler = ArdLogHandler(filename, self) # pass self to allow access to simDelayMs
+                if self.source_handler is not None and self.source_handler.adapter_type == "log":
+                    self.source_handler.open(filename=filename)
+                else:
+                    self.source_handler = ArdLogHandler(filename, self) # pass self to allow access to simDelayMs
                 self.status['text'] = "Simulation file loaded"
+                self.log("Requested to open " + str(filename))
         except:
             print("[SIM] No file loaded")
             self.status['text'] = "Failed to load simulation file"
@@ -1124,7 +1129,7 @@ class oleomux:
         '''
         if self.reading_thread is None:
             self.reading_thread = None
-            self.reading_thread = threading.Thread(target=reading_loop, args=(self, self.source_handler), daemon=True)
+            self.reading_thread = threading.Thread(target=reading_loop, args=(self,), daemon=True)
             self.reading_thread.start()
             print("[THR] Started reading thread")
 
@@ -1132,7 +1137,7 @@ class oleomux:
             print("[THR] Reading thread is already running, no action taken")
         else:
             self.reading_thread = None
-            self.reading_thread = threading.Thread(target=reading_loop, args=(self,self.source_handler), daemon=True)
+            self.reading_thread = threading.Thread(target=reading_loop, args=(self,), daemon=True)
             self.reading_thread.start()
             print("[THR] Re-created reading thread")
 
@@ -1738,7 +1743,7 @@ def can_to_bin(data):
     
     return binstr
 
-def reading_loop(parent, source_handler):
+def reading_loop(parent):
     """Background thread for reading."""
     try:
         eof_data.clear()
@@ -1746,8 +1751,9 @@ def reading_loop(parent, source_handler):
         while 1:
             while not stop_reading.is_set():
                 try:
-                    result = source_handler.get_message()
+                    result = parent.source_handler.get_message()
                     if not result:
+                        time.sleep(0.1)
                         continue
                     if result == -1:
                         # end of file
@@ -1755,7 +1761,7 @@ def reading_loop(parent, source_handler):
                         return
 
                     frame_id, data = result
-                    print(frame_id)
+                    #print(frame_id)
                 except InvalidFrame:
                     print("[CAN] Invalid frame encountered")
                     print("[DMP]", str(traceback.format_exc()))
