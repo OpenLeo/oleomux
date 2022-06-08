@@ -57,7 +57,7 @@ class SourceHandler:
         """Get CAN id and CAN data.
 
         Returns:
-            A tuple containing the id (int) and data (bytes)
+            A tuple containing the id (as hex) and data (list of ints)
 
         Raises:
             InvalidFrame
@@ -284,7 +284,7 @@ class SerialHandlerNew(SourceHandler):
         
         self.cs.writerow([timestamp, id, *msg_data])
         
-        return id, msg_data
+        return self.to_hex(id), msg_data
 
 
 class SerialHandler(SourceHandler):
