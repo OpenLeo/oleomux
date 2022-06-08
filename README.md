@@ -72,11 +72,10 @@ Databases included in the repository are compiled from publicly available inform
 
 Main functionality todo list
 ----------------------------
+- Test and fix arduino/socketcan input
 - Fix cantools dbc output code (bugs)
     - if there is no sender/receivers then it outputs illegal dbc
     - if there are spaces in signal names it outputs illegal dbc
-- Check if "is_decimal" is used anywhere
-- Test and fix arduino/socketcan input
 - Replace some 0/1 integers with checkboxes
 - When deleting choices, the last one won't disappear from the treeview (although it is deleted). Reloading window makes it go away - seems to be a bug in tkinter
 - More translations and sync up with PSA-RE

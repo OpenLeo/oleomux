@@ -65,7 +65,7 @@ class signal_editor:
             self.svs["choices"] = self.app.omgr.txt_choices_encode(sig)
             self.svs["units"] = StringVar(value=sig.unit)
             self.svs["dtype"] = sig.dtype
-            self.svs["inverted"] = sig.inverted
+            self.svs["inverted"] = IntVar(value=sig.inverted)
 
             self.lbl.append(Label(self.win, text="Bits"))
             self.field.append(Entry(self.win, text = self.svs["bits"]))
@@ -100,13 +100,13 @@ class signal_editor:
             self.field.append(Spinbox(self.win, text = self.svs["max"]))
 
             self.lbl.append(Label(self.win, text="Datatype"))
-            dtype_cmb = Combobox(self.win, values = self.TYPE_OPTIONS)
+            self.dtype_cmb = Combobox(self.win, values = self.TYPE_OPTIONS)
             if sig.dtype in self.TYPE_OPTIONS:
-                dtype_cmb.current(self.TYPE_OPTIONS.index(self.svs["dtype"]))
+                self.dtype_cmb.current(self.TYPE_OPTIONS.index(self.svs["dtype"]))
             else:
-                dtype_cmb.current(0)
+                self.dtype_cmb.current(0)
 
-            self.field.append(dtype_cmb)
+            self.field.append(self.dtype_cmb)
 
             self.lbl.append(Label(self.win, text="Inverted"))
             self.field.append(Spinbox(self.win, text = self.svs["inverted"], from_=0, to=1))
@@ -224,7 +224,8 @@ class signal_editor:
         self.app.omgr.messages[self.mid].signals[self.sid].scale = self.svs["factor"].get()
         self.app.omgr.messages[self.mid].signals[self.sid].offset = self.svs["offset"].get()
         self.app.omgr.messages[self.mid].signals[self.sid].receivers = self.svs["receivers"].get().split(",")
-        self.app.omgr.messages[self.mid].signals[self.sid].is_signed = self.svs["signed"].get()
+        self.app.omgr.messages[self.mid].signals[self.sid].dtype = self.dtype_cmb.get()
+        self.app.omgr.messages[self.mid].signals[self.sid].inverted = self.svs["inverted"].get()
         # self.app.messages[self.mid].signals[self.sid].choices = xx
 
         self.app.reload_signal_ui()

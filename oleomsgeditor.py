@@ -1,5 +1,6 @@
 from tkinter import END, Canvas, Scrollbar, Spinbox, Tk, Text, Label, Button, Entry, filedialog, StringVar, Menu, Frame, SUNKEN, W, DISABLED, NORMAL, Toplevel, BooleanVar, IntVar, messagebox
-import cantools
+from tkinter.ttk import Combobox
+import cantools, traceback
 
 class message_editor:
     '''
@@ -16,6 +17,8 @@ class message_editor:
     active_ref = -1
     active_dic = -1
     created = 0
+
+    TYPE_MESSAGES = [ "can", "can-tp" ]
 
     txt = {}
     lbl = []
@@ -55,6 +58,7 @@ class message_editor:
             self.svs["periodicity"] = IntVar(value=msg.cycle_time)
             self.svs["senders"] = StringVar(value=",".join(msg.senders))
             self.svs["signals"] = len(msg.signals)
+            self.svs["mtype"] = msg.mtype
             #self.svs["receivers"] = StringVar(",".join(msg.receivers))
 
             self.lbl.append(Label(self.win, text="Frame ID"))
@@ -85,6 +89,14 @@ class message_editor:
             self.comment_field_fr = Text(self.win, height=2, width=30)
             self.field.append(self.comment_field_fr)
             self.field[-1].insert(END, str(self.svs["fr"]))
+
+            self.lbl.append(Label(self.win, text="Message type"))
+            self.mtype_cmb = Combobox(self.win, values = self.TYPE_MESSAGES)
+            self.field.append(self.mtype_cmb)
+            if msg.mtype in self.TYPE_MESSAGES:
+                self.mtype_cmb.current(self.TYPE_MESSAGES.index(self.svs["mtype"]))
+            else:
+                self.mtype_cmb.current(0)
 
             self.lbl.append(Label(self.win, text="Periodicity"))
             self.field.append(Spinbox(self.win, text = self.svs["periodicity"]))
@@ -118,27 +130,30 @@ class message_editor:
         '''
         try:
             self.app.omgr.messages[self.mid].frame_id = int(self.svs["id"].get(), 16)
+
+            self.app.omgr.messages[self.mid].name = self.svs["name"].get()
+            self.app.omgr.messages[self.mid].length = self.svs["length"].get()
+
+            comments_collection = {}
+            comments_collection["en"] = self.comment_field_en.get("1.0", "end-1c")
+            comments_collection["fr"] = self.comment_field_fr.get("1.0", "end-1c")
+            #comments_collection["name_en"] = self.svs["name_en"].get()
+            comments_collection["src"] = self.svs["src"].get()       # not user editable, atm
+
+            comments_joined = self.app.omgr.yml_comment_decode(comments_collection)
+
+            self.app.omgr.messages[self.mid].comment = comments_joined
+            
+            # -- TODO: These are missing "setter" functions in cantools upstream
+            self.app.omgr.messages[self.mid].senders = self.svs["senders"].get().split(",")
+            self.app.omgr.messages[self.mid].cycle_time = self.svs["periodicity"].get()
+            self.app.omgr.messages[self.mid].mtype = self.mtype_cmb.get()
+
+            self.app.reload_msg_list()
         except:
-            pass
-
-        self.app.omgr.messages[self.mid].name = self.svs["name"].get()
-        self.app.omgr.messages[self.mid].length = self.svs["length"].get()
-
-        comments_collection = {}
-        comments_collection["en"] = self.comment_field_en.get("1.0", "end-1c")
-        comments_collection["fr"] = self.comment_field_fr.get("1.0", "end-1c")
-        #comments_collection["name_en"] = self.svs["name_en"].get()
-        comments_collection["src"] = self.svs["src"].get()       # not user editable, atm
-
-        comments_joined = self.app.omgr.yml_comment_decode(comments_collection)
-
-        self.app.omgr.messages[self.mid].comment = comments_joined
-        
-        # -- TODO: These are missing "setter" functions in cantools upstream
-        self.app.omgr.messages[self.mid].senders = self.svs["senders"].get().split(",")
-        self.app.omgr.messages[self.mid].cycle_time = self.svs["periodicity"].get()
-
-        self.app.reload_msg_list()
+            messagebox.showerror("The message could not be saved. Consult the logfile for more details.")
+            self.log("Unable to save message - " + str(self.mid))
+            self.log("DMP", str(traceback.format_exc()))
 
     
     def saveclose(self):

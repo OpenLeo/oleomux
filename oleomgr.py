@@ -148,11 +148,17 @@ class oleomgr:
                 start_byte, start_bit = start_pos.split(".")
                 end_byte, end_bit = end_pos.split(".")
 
+                start_byte = int(start_byte)
+                end_byte = int(end_byte)
+                start_bit = int(start_bit)
+                end_bit = int(end_bit)
+
                 if input_mode == self.MODE_CANT:
                     start_bit = 7 - start_bit
                     end_bit = 7 - end_bit
             except:
                 self.log("Error splitting yml_bits - " + str(bits_str))
+                self.log("DMP", str(traceback.format_exc()))
                 return False
 
             start_byte = int(start_byte)
@@ -353,7 +359,7 @@ class oleomgr:
             messages_export[-1].signals = signal_export
         
         db = cantools.database.can.Database(messages = messages_export, strict=False)
-        # todo - check endianness
+        # todo - check endianness, update is_signed and is_decimal from datatype
         cantools.database.dump_file(db, fname, 'dbc', encoding = 'utf-8')
 
         return True
