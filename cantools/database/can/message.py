@@ -278,7 +278,7 @@ class Message(object):
 
         """
 
-        return self._frame_id
+        return self._mtype
 
     @mtype.setter
     def mtype(self, value: str) -> None:
