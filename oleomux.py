@@ -1044,8 +1044,12 @@ class oleomux:
                 return
             else:
                 self.sim_ok = True
-                self.source_handler = ArdLogHandler(filename, self) # pass self to allow access to simDelayMs
+                if self.source_handler is not None and self.source_handler.adapter_type == "log":
+                    self.source_handler.open(filename=filename)
+                else:
+                    self.source_handler = ArdLogHandler(filename, self) # pass self to allow access to simDelayMs
                 self.status['text'] = "Simulation file loaded"
+                self.log("Requested to open " + str(filename))
         except:
             print("[SIM] No file loaded")
             self.status['text'] = "Failed to load simulation file"
@@ -1127,7 +1131,7 @@ class oleomux:
         '''
         if self.reading_thread is None:
             self.reading_thread = None
-            self.reading_thread = threading.Thread(target=reading_loop, args=(self, self.source_handler), daemon=True)
+            self.reading_thread = threading.Thread(target=reading_loop, args=(self,), daemon=True)
             self.reading_thread.start()
             print("[THR] Started reading thread")
 
@@ -1135,7 +1139,7 @@ class oleomux:
             print("[THR] Reading thread is already running, no action taken")
         else:
             self.reading_thread = None
-            self.reading_thread = threading.Thread(target=reading_loop, args=(self,self.source_handler), daemon=True)
+            self.reading_thread = threading.Thread(target=reading_loop, args=(self,), daemon=True)
             self.reading_thread.start()
             print("[THR] Re-created reading thread")
 
@@ -1741,7 +1745,7 @@ def can_to_bin(data):
     
     return binstr
 
-def reading_loop(parent, source_handler):
+def reading_loop(parent):
     """Background thread for reading."""
     try:
         eof_data.clear()
@@ -1749,7 +1753,7 @@ def reading_loop(parent, source_handler):
         while 1:
             while not stop_reading.is_set():
                 try:
-                    result = source_handler.get_message()
+                    result = parent.source_handler.get_message()
                     if not result:
                         time.sleep(0.1)
                         continue
@@ -1759,7 +1763,7 @@ def reading_loop(parent, source_handler):
                         return
 
                     frame_id, data = result
-                    print(frame_id)
+                    #print(frame_id)
                 except InvalidFrame:
                     print("[CAN] Invalid frame encountered")
                     print("[DMP]", str(traceback.format_exc()))

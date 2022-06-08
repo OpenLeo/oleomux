@@ -375,7 +375,9 @@ class ArdLogHandler(SourceHandler):
         self.open()
 
 
-    def open(self, bus=""):
+    def open(self, bus="", filename=""):
+        if filename != "":
+            self.filename = filename
         self.csvfile = open(self.filename, newline='')
         self.f = csv.reader(self.csvfile, delimiter=' ', quotechar='|')
         self.is_timestamped = None
@@ -385,6 +387,8 @@ class ArdLogHandler(SourceHandler):
         self.bus = bus
         self.log("Opening " + str(self.filename))
 
+    def start(self):
+        self.open()
 
     def get_message(self):
         # introduce a fake message delay
