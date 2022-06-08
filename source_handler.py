@@ -129,14 +129,14 @@ class CANHandler(SourceHandler):
 
 
 class SerialHandlerNew(SourceHandler):
-    def __init__(self, device_name, baudrate=115200, bus="", veh=""):
+    def __init__(self, device_name, baudrate=115200, canspeed=125, bus="", veh=""):
         self.adapter_type = "serial"
         self.device_name = device_name
         self.baudrate = baudrate
         self.serial_device = None
         self.bus = bus      
         self.veh = veh
-        self.can_speed = 250
+        self.can_speed = canspeed
         self.connected = False
         self.packets = []
         self.serial_thread = None

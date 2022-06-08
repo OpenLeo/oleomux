@@ -108,7 +108,7 @@ class oleomux:
     configuration = {
         "logs_dir": "logs/",     # logs/
         "adapter_type": 2,       # use serial
-        "can_speed": 250,        # 250 kbps
+        "can_speed": 125,        # 250 kbps
         "bit_ordering": 2,       # mode CANT
         "uart_baud": 115200,     # for serial adapter
         "can_interface": "can0", # for can
@@ -920,7 +920,7 @@ class oleomux:
                 try:        
                     self.port = self.com_ports[self.serialPort.current()]
                     print("[SER] Connect to " + self.port)
-                    self.source_handler = SerialHandlerNew(self.port, baudrate = self.configuration["uart_baud"], bus="", veh="")
+                    self.source_handler = SerialHandlerNew(self.port, baudrate = self.configuration["uart_baud"], canspeed=self.canspeed.get(), bus="", veh="")
                     self.source_handler.open()
                     self.source_handler.start()
 
