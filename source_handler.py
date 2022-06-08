@@ -20,6 +20,9 @@ class SourceHandler:
     filter_log = None
     owner = None
 
+    def to_hex(self, raw_val, lng=3):
+        return "{0:0{1}x}".format(raw_val, lng).upper()
+
     def __init__(self, *largs):
         self.adapter_type = "raw"
 
@@ -279,7 +282,7 @@ class SerialHandlerNew(SourceHandler):
                 # skip logging only if we explicitly filtered it out
                 return id, msg_data
         
-        self.cs.writerow([timestamp, id, inp[4], *msg_data])
+        self.cs.writerow([timestamp, id, *msg_data])
         
         return id, msg_data
 
@@ -369,6 +372,8 @@ class ArdLogHandler(SourceHandler):
         self.adapter_type = "log"
         self.filename = file_name
         self.owner = owner
+        self.open()
+
 
     def open(self, bus=""):
         self.csvfile = open(self.filename, newline='')
@@ -376,7 +381,10 @@ class ArdLogHandler(SourceHandler):
         self.is_timestamped = None
         self.is_bussed = None
         self.is_offset = 0
+        self.is_hexa = None
         self.bus = bus
+        self.log("Opening " + str(self.filename))
+
 
     def get_message(self):
         # introduce a fake message delay
@@ -391,24 +399,45 @@ class ArdLogHandler(SourceHandler):
             if len(line[0]) > 4:
                 self.is_timestamped = True
                 self.is_offset = self.is_offset + 1
-                print("[SIM] Selected simulation includes timestamps. Speed set to " + str(self.owner.simDelayMs))               
+                print("[SIM] Selected simulation includes timestamps. Speed set to " + str(self.owner.simDelayMs))      
+
                 if len(line[1]) > 4:
                     self.is_bussed = True
                     self.is_offset = self.is_offset + 1
                     print("[SIM] Selected simulation includes bus information")
                     if self.bus != "" and self.bus != line[1]:
                         print("[SIM] WARNING: Bus definitions loaded do not match the log data")
+                    if "0x" in line[3]:
+                        self.is_hexa = True
+                    else:
+                        self.is_hexa = False
                 else:
                     self.is_bussed = False
+                    if "0x" in line[1]:
+                        self.is_hexa = True
+                    else:
+                        self.is_hexa = False
             else:
+                if "0x" in line[2]:
+                    self.is_hexa = True
+                else:
+                    self.is_hexa = False
                 self.is_timestamped = False
                 print("[SIM] Selected simulation has no timestamps. Delay set to " + str(self.owner.simDelayMs/1000.0))
             
         can_id = line[self.is_offset]
+
+        if not self.is_hexa:
+            can_id = self.to_hex(int(can_id))
         
         bytes = []
         for x in line[(self.is_offset + 1):]:
-            bytes.append(int(x, 16))
+            if x == "":
+                break
+            if self.is_hexa:
+                bytes.append(int(x, 16))
+            else:
+                bytes.append(int(x))
         return can_id, bytes
             
 

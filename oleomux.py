@@ -113,6 +113,7 @@ class oleomux:
         "uart_baud": 115200,     # for serial adapter
         "can_interface": "can0", # for can
         "tab_space_num": 4,
+        "debug": 0,
         "STRUCT_PREFIX": "ole07_",
         "FUNC_PARSE_PREFIX": "ole07_parse_",
         "TYPE_S8": "int8_t ",

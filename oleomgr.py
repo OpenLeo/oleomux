@@ -545,7 +545,8 @@ class oleomgr:
 
         for file_name in file_list:
             try:
-                self.log("Opening " + str(file_name))
+                if self.owner.configuration["debug"] == 1:
+                    self.log("Opening " + str(file_name))
                 f = open(file_name)
                 f_contents = f.readlines()
                 f_contents = "".join(f_contents)
@@ -564,7 +565,8 @@ class oleomgr:
                 self.log("Missing SIGNAL definitions for message " + str(file_name))
             
             for signal in msg["signals"]:
-                print(signal)
+                if self.owner.configuration["debug"] == 1:
+                    print(signal)
                 result = self.yml_bits_decode(msg["signals"][signal]["bits"])
                 if not result:
                     continue
