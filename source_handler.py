@@ -41,7 +41,7 @@ class SourceHandler:
 
             if not os.path.exists(directory):
                 os.makedirs(directory)
-            fname = str(datetime.datetime.now().strftime("%d-%m-%Y-%H-%M-%S")) + ".log"
+            fname = "can_logs/" + str(datetime.datetime.now().strftime("%d-%m-%Y-%H-%M-%S")) + ".log"
 
             csvfile = open(fname, 'w', newline='')
             self.cs = csv.writer(csvfile, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
@@ -141,7 +141,7 @@ class SerialHandlerNew(SourceHandler):
         self.packets = []
         self.serial_thread = None
         self.thread_event = threading.Event()
-        self.serial_thread = threading.Thread(target=self.serial_thread_loop, args=(self.thread_event), daemon=True)
+        self.serial_thread = threading.Thread(target=self.serial_thread_loop, args=(self.thread_event,), daemon=True)
 
 
     def open(self):
@@ -149,7 +149,7 @@ class SerialHandlerNew(SourceHandler):
         Open the connection to the serial port
         '''
         self.log_open()
-        self.serial_device = serial.Serial(self.device_name, self.baudrate, timeout=None)
+        self.serial_device = serial.Serial(self.device_name, self.baudrate)
         self.connected = True
         self.thread_event.clear()
 
@@ -247,6 +247,7 @@ class SerialHandlerNew(SourceHandler):
                     self.serial_device.write(bytearray([ord('s')]))
                     self.serial_device.flush()
                     self.serial_device.flushInput()
+                
             
             while stop_event.is_set():
                 time.sleep(0.2)

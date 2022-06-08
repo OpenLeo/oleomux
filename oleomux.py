@@ -80,7 +80,7 @@ class oleomux:
     SIGDEF = 2
     STADEF = 3
 
-    conn = USE_CAN
+    conn = USE_SERIAL
     messageMap = None
     
     types = []
@@ -1750,6 +1750,7 @@ def reading_loop(parent, source_handler):
                 try:
                     result = source_handler.get_message()
                     if not result:
+                        time.sleep(0.1)
                         continue
                     if result == -1:
                         # end of file
