@@ -219,6 +219,8 @@ class Signal(object):
                  multiplexer_ids: Optional[List[int]] = None,
                  multiplexer_signal: Optional[str] = None,
                  is_float: bool = False,
+                 dtype: str = "uint",
+                 inverted: bool = False,
                  decimal: Optional[Decimal] = None,
                  spn: Optional[int] = None
                  ) -> None:
@@ -237,6 +239,8 @@ class Signal(object):
         self._unit = unit
         self._choices = choices
         self._dbc = dbc_specifics
+        self._dtype = dtype
+        self._inverted = inverted
 
         # if the 'comment' argument is a string, we assume that is an
         # english comment. this is slightly hacky because the
@@ -430,6 +434,33 @@ class Signal(object):
     @unit.setter
     def unit(self, value: Optional[str]) -> None:
         self._unit = value
+    
+
+    @property
+    def dtype(self) -> Optional[str]:
+        """The data type of the signal, or ``None`` if unavailable.
+
+        """
+
+        return self._dtype
+
+    @dtype.setter
+    def dtype(self, value: Optional[str]) -> None:
+        self._dtype = value
+
+    
+    @property
+    def inverted(self) -> Optional[bool]:
+        """Whether or not bool type is inverted, or ``None`` if unavailable.
+
+        """
+
+        return self._inverted
+
+    @inverted.setter
+    def inverted(self, value: Optional[bool]) -> None:
+        self._inverted = value
+
 
     @property
     def choices(self) -> Optional["OrderedDict[int, NamedSignalValue]"]:

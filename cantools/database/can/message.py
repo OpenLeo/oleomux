@@ -3,6 +3,7 @@
 import binascii
 import logging
 from copy import deepcopy
+from re import S
 from typing import (
     List,
     Sequence,
@@ -86,6 +87,7 @@ class Message(object):
                  autosar_specifics: Optional['AutosarMessageSpecifics'] = None,
                  is_extended_frame: bool = False,
                  is_fd: bool = False,
+                 mtype: str = 'can',
                  bus_name: Optional[str] = None,
                  signal_groups: Optional[List[SignalGroup]] = None,
                  strict: bool = True,
@@ -119,7 +121,7 @@ class Message(object):
         else:
             self._signals = signals
         self._contained_messages = contained_messages
-
+        self._mtype = mtype
 
         # if the 'comment' argument is a string, we assume that is an
         # english comment. this is slightly hacky because the
@@ -269,6 +271,18 @@ class Message(object):
     @frame_id.setter
     def frame_id(self, value: int) -> None:
         self._frame_id = value
+
+    @property
+    def mtype(self) -> str:
+        """The message type (can or can-tp).
+
+        """
+
+        return self._frame_id
+
+    @mtype.setter
+    def mtype(self, value: str) -> None:
+        self._mtype = value
 
     @property
     def is_extended_frame(self) -> bool:

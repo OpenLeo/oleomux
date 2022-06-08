@@ -30,7 +30,7 @@ class CANDef:
         comment_fields = self.owner.omgr.yml_comment_encode(self.owner.omgr.messages[mid].signals[sid].comment)
 
         self.label_en = Entry(self.owner.scrollable_frame, width=20)
-        self.label_en.insert(0, comment_fields["name_en"])
+        self.label_en.insert(0, comment_fields["en"])
         self.label_en.configure(disabledbackground="white", disabledforeground="black", state="readonly")
 
         self.value = Entry(self.owner.scrollable_frame, textvariable=self.strValue, state='readonly', width=20)

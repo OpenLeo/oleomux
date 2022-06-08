@@ -21,6 +21,8 @@ class signal_editor:
 
     choice_editor = None
 
+    TYPE_OPTIONS = ["uint", "sint", "float", "str", "bool_present", "bool_active", "bool_enabled", "bool_pressed", "bool_on"]
+
     txt = {}
     lbl = []
     svs = {}
@@ -62,7 +64,8 @@ class signal_editor:
             self.svs["receivers"] = StringVar(value=",".join(sig.receivers))
             self.svs["choices"] = self.app.omgr.txt_choices_encode(sig)
             self.svs["units"] = StringVar(value=sig.unit)
-            self.svs["signed"] = IntVar(value=sig.is_signed)
+            self.svs["dtype"] = sig.dtype
+            self.svs["inverted"] = sig.inverted
 
             self.lbl.append(Label(self.win, text="Bits"))
             self.field.append(Entry(self.win, text = self.svs["bits"]))
@@ -72,23 +75,23 @@ class signal_editor:
 
             comment_fields = self.app.omgr.yml_comment_encode(sig.comment)
 
-            self.svs["name_en"] =  StringVar(value=comment_fields["name_en"])
-            self.svs["comment_en"] = comment_fields["comment_en"]
-            self.svs["comment_fr"] = comment_fields["comment_fr"]
+            #self.svs["name_en"] =  StringVar(value=comment_fields["name_en"])
+            self.svs["en"] = comment_fields["en"]
+            self.svs["fr"] = comment_fields["fr"]
             self.svs["src"] = comment_fields["src"]
 
-            self.lbl.append(Label(self.win, text="Name (EN)"))
-            self.field.append(Entry(self.win, text = self.svs["name_en"], width=50))
+            #self.lbl.append(Label(self.win, text="Name (EN)"))
+            #self.field.append(Entry(self.win, text = self.svs["name_en"], width=50))
 
             self.lbl.append(Label(self.win, text="Comment (EN)"))
             self.comment_field_en = Text(self.win, height=2, width=50)
             self.field.append(self.comment_field_en)
-            self.field[-1].insert(END, str(self.svs["comment_en"]))
+            self.field[-1].insert(END, str(self.svs["en"]))
 
             self.lbl.append(Label(self.win, text="Comment (FR)"))
             self.comment_field_fr = Text(self.win, height=2, width=50)
             self.field.append(self.comment_field_fr)
-            self.field[-1].insert(END, str(self.svs["comment_fr"]))
+            self.field[-1].insert(END, str(self.svs["fr"]))
 
             self.lbl.append(Label(self.win, text="Min"))
             self.field.append(Spinbox(self.win, text = self.svs["min"]))
@@ -96,8 +99,17 @@ class signal_editor:
             self.lbl.append(Label(self.win, text="Max"))
             self.field.append(Spinbox(self.win, text = self.svs["max"]))
 
-            self.lbl.append(Label(self.win, text="Signed"))
-            self.field.append(Spinbox(self.win, text = self.svs["signed"], from_=0, to=1))
+            self.lbl.append(Label(self.win, text="Datatype"))
+            dtype_cmb = Combobox(self.win, values = self.TYPE_OPTIONS)
+            if sig.dtype in self.TYPE_OPTIONS:
+                dtype_cmb.current(self.TYPE_OPTIONS.index(self.svs["dtype"]))
+            else:
+                dtype_cmb.current(0)
+
+            self.field.append(dtype_cmb)
+
+            self.lbl.append(Label(self.win, text="Inverted"))
+            self.field.append(Spinbox(self.win, text = self.svs["inverted"], from_=0, to=1))
 
             self.lbl.append(Label(self.win, text="Factor"))
             self.field.append(Spinbox(self.win, text = self.svs["factor"]))
@@ -199,9 +211,9 @@ class signal_editor:
         self.app.omgr.messages[self.mid].signals[self.sid].name = self.svs["name"].get()
 
         comments_collection = {}
-        comments_collection["comment_en"] = self.comment_field_en.get("1.0", "end-1c")
-        comments_collection["comment_fr"] = self.comment_field_fr.get("1.0", "end-1c")
-        comments_collection["name_en"] = self.svs["name_en"].get()
+        comments_collection["en"] = self.comment_field_en.get("1.0", "end-1c")
+        comments_collection["fr"] = self.comment_field_fr.get("1.0", "end-1c")
+        #comments_collection["name_en"] = self.svs["name_en"].get()
         comments_collection["src"] = self.svs["src"]            # not user editable, atm
 
         comments_joined = self.app.omgr.yml_comment_decode(comments_collection)
@@ -280,23 +292,23 @@ class choice_editor:
 
             comment_fields = self.app.omgr.yml_comment_encode(chc.comments)
 
-            self.svs["name_en"] =  StringVar(value=comment_fields["name_en"])
-            self.svs["comment_en"] = comment_fields["comment_en"]
-            self.svs["comment_fr"] = comment_fields["comment_fr"]
+            #self.svs["name_en"] =  StringVar(value=comment_fields["name_en"])
+            self.svs["en"] = comment_fields["en"]
+            self.svs["fr"] = comment_fields["fr"]
             self.svs["src"] = comment_fields["src"]
 
-            self.lbl.append(Label(self.win, text="Name (EN)"))
-            self.field.append(Entry(self.win, text = self.svs["name_en"], width=50))
+            #self.lbl.append(Label(self.win, text="Name (EN)"))
+            #self.field.append(Entry(self.win, text = self.svs["name_en"], width=50))
 
             self.lbl.append(Label(self.win, text="Comment (EN)"))
             self.comment_field_en = Text(self.win, height=2, width=50)
             self.field.append(self.comment_field_en)
-            self.field[-1].insert(END, str(self.svs["comment_en"]))
+            self.field[-1].insert(END, str(self.svs["en"]))
 
             self.lbl.append(Label(self.win, text="Comment (FR)"))
             self.comment_field_fr = Text(self.win, height=2, width=50)
             self.field.append(self.comment_field_fr)
-            self.field[-1].insert(END, str(self.svs["comment_fr"]))
+            self.field[-1].insert(END, str(self.svs["fr"]))
 
             cnt = 2
             for lbl in self.lbl:
@@ -332,9 +344,9 @@ class choice_editor:
         self.app.omgr.messages[self.mid].signals[self.sid].choices[self.cid].name = self.svs["name"].get()
 
         comments_collection = {}
-        comments_collection["comment_en"] = self.comment_field_en.get("1.0", "end-1c")
-        comments_collection["comment_fr"] = self.comment_field_fr.get("1.0", "end-1c")
-        comments_collection["name_en"] = self.svs["name_en"].get()
+        comments_collection["en"] = self.comment_field_en.get("1.0", "end-1c")
+        comments_collection["fr"] = self.comment_field_fr.get("1.0", "end-1c")
+        #comments_collection["name_en"] = self.svs["name_en"].get()
         comments_collection["src"] = self.svs["src"]            # not user editable, atm
 
         comments_joined = self.app.omgr.yml_comment_decode(comments_collection)

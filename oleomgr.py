@@ -203,13 +203,12 @@ class oleomgr:
                 signal["src"] = src
             
             output = signal
-
-            if "name_en" not in output:
-                output["name_en"] = ""
-            if "comment_en" not in output:
-                output["comment_en"] = ""
-            if "comment_fr" not in output:
-                output["comment_fr"] = ""
+            #if "alt_name" not in output:
+            #    output["alt_name"] = ""
+            if "en" not in output:
+                output["en"] = ""
+            if "fr" not in output:
+                output["fr"] = ""
             if "src" not in output:
                 output["src"] = ""
 
@@ -229,20 +228,21 @@ class oleomgr:
                 if src is not None:
                     output["src"] = src
             else:
-                output["comment_fr"] = signal
+                output["fr"] = signal
         except:
             pass
 
-        if "name_en" not in output:
-            output["name_en"] = ""
-        if "comment_en" not in output:
-            output["comment_en"] = ""
-        if "comment_fr" not in output:
-            output["comment_fr"] = ""
+        #if "alt_name" not in output:
+        #    output["alt_name"] = ""
+        if "en" not in output:
+            output["en"] = ""
+        if "fr" not in output:
+            output["fr"] = ""
         if "src" not in output:
             output["src"] = ""
 
         return output
+
 
     def yml_comment_decode(self, comment):
         out = ""
@@ -304,6 +304,8 @@ class oleomgr:
 
         added = 0
         for message in db.messages:
+            for signal in message.signals:
+                print(signal.dtype)
             if message.frame_id not in self.messages:
                 added += 1
                 self.messages[message.frame_id] = message
@@ -422,6 +424,125 @@ class oleomgr:
         return True
 
 
+    def export_to_yaml_oleo(self, fname, include_list, comment_src = None, callback = None):
+        '''
+        Export from internal cantools data structure
+        to YAML file format
+        '''
+
+        mode = 0
+
+        if type(include_list) == int:
+            # fname is a full file path
+            # if a given message ID is set to 1 instead of a list, it will 
+            # export every signal in the message
+            include_list = { include_list : 1 }
+            mode = 0
+
+            fname = str(fname)
+
+            try:
+                if fname.split(".")[-1] != "yml":
+                    fname = fname + ".yml"
+            except:
+                fname = fname + ".yml"
+        else:
+            # fname is a FOLDER path
+            mode = 1
+
+        ctr = 1
+ 
+        for mid in self.messages:
+            message = self.messages[mid]
+            yaml_tree = {}
+
+            if message.frame_id not in include_list:
+                ctr += 1
+                continue
+
+            receivers = []
+
+            yaml_tree[message.frame_id] = {
+                "id": "0x" + self.to_hex(message.frame_id),
+                "name": message.name,
+                "length": message.length,
+                "type": message.mtype,
+                "comment": self.yml_comment_encode(message.comment, comment_src),
+                "periodicity": message.cycle_time,
+                "senders": message.senders,
+                "signals": {}
+            }
+
+            id = message.frame_id
+
+            signal_offset = 0
+            for signal in message.signals:
+                if include_list is not None:
+                    if message.frame_id not in include_list:
+                        continue
+                    else:
+                        if type(include_list[message.frame_id]) == list:
+                            if signal_offset not in include_list[message.frame_id]:
+                                continue
+                signal_offset += 1
+
+                choices_clean = None
+                if signal.choices is not None:
+                    choices_clean = {}
+                    for choice in signal.choices:
+                        comment_enc = {}
+                        comment_enc["comment"] = self.yml_comment_encode(signal.choices[choice].comments)
+                        comment_enc["name"] = str(signal.choices[choice])
+                        choices_clean[choice] = comment_enc
+
+
+                yaml_tree[id]["signals"][signal.name] = {
+                    "bits": self.yml_bits_encode(signal),
+                    #"byte_order": 'big_endian',
+                    "type": signal.dtype,
+                    "comment": self.yml_comment_encode(signal.comment),
+                    "min": signal.minimum,
+                    "max": signal.maximum,
+                    "factor": signal.scale,
+                    "offset": signal.offset,
+                    "units": signal.unit,
+                    "values": choices_clean
+                }
+
+                # add only if relevant to the signal type
+                if "bool" in signal.dtype:
+                    yaml_tree[id]["signals"][signal.name]["inverted"] = signal.inverted
+
+                # cantools uses receivers by signal, rather than
+                # by frame
+                for receiver in signal.receivers:
+                    if receiver not in receivers:
+                        receivers.append(receiver)
+            
+            yaml_tree[id]["receivers"] = receivers
+
+            #pprint.pprint(yaml.dump(yaml_tree[0xF6]))
+            if mode == 0:
+                f = open(fname, "w")
+                self.log("Exporting yaml " + str(self.to_hex(message.frame_id)))
+                yaml.dump(yaml_tree[message.frame_id], f)
+                f.close()
+                return True
+            
+            else:
+                self.log("Exporting yaml " + str(self.to_hex(message.frame_id)))
+                f = open(fname + "/" + self.to_hex(message.frame_id) + ".yml", "w")
+                yaml.dump(yaml_tree[message.frame_id], f)
+                f.close()
+
+            if callback is not None:
+                callback(ctr)
+
+            ctr += 1
+        
+        return True
+
+
     def export_to_yaml(self, fname, include_list, comment_src = None, callback = None):
         '''
         Export from internal cantools data structure
@@ -534,6 +655,125 @@ class oleomgr:
             ctr += 1
         
         return True
+
+
+    def import_from_yaml_oleo(self, file_list, callback = None):
+        '''
+        Import from oleo YAML to internal cantools data structure
+        '''
+        tree = {}
+        ctr = 1
+
+        for file_name in file_list:
+            try:
+                self.log("Opening " + str(file_name))
+                f = open(file_name)
+                f_contents = f.readlines()
+                f_contents = "".join(f_contents)
+                msg = yaml.safe_load(f_contents)
+            except:
+                msg = None
+                self.log("DMP", str(traceback.format_exc()))
+
+            msg_signals = []
+
+            if msg is None:
+                self.log("Failed to load " + str(file_name))
+                continue
+
+            if "signals" not in msg:
+                self.log("Missing SIGNAL definitions for message " + str(file_name))
+            
+            for signal in msg["signals"]:
+                print(signal)
+                result = self.yml_bits_decode(msg["signals"][signal]["bits"])
+                if not result:
+                    continue
+
+                bit_start, bit_length = result
+
+                # decode comment fields of choices
+                choices = self.dget(msg["signals"][signal], "values", {})
+                choices_loaded = {}
+                if choices is not None:
+                    for choice in choices:
+                        if type(choices[choice]) == dict:
+                            choices_loaded[choice] = NamedSignalValue(value=choice, name=choices[choice]["name"], comments=self.yml_comment_decode(choices[choice]["comment"]))
+                        else:
+                            choices_loaded[choice] = choices[choice]
+
+                stype = self.dget(msg["signals"][signal], "type", "uint")
+                is_signed = False
+                is_decimal = False
+
+                if stype == "uint":
+                    is_signed = False
+                    is_decimal = False
+                if stype == "sint":
+                    is_signed = True
+                    is_decimal = False
+                if stype == "float" or stype == "double":
+                    is_signed = True
+                    is_decimal = True
+
+                
+                msg_signals.append(
+                    cantools.database.can.Signal(
+                        name = signal,
+                        byte_order = self.dget(msg["signals"][signal], "endian", "big_endian"), 
+                        start = bit_start,
+                        length = bit_length,
+                        scale = self.dget(msg["signals"][signal], "factor", 1),
+                        offset = self.dget(msg["signals"][signal], "offset", 0),
+                        is_signed = is_signed,
+                        is_float = is_decimal,
+                        dtype = stype,
+                        inverted = self.dget(msg["signals"][signal], "inverted", False),
+                        minimum = self.dget(msg["signals"][signal], "min", None),
+                        maximum = self.dget(msg["signals"][signal], "max", None),
+                        unit = self.dget(msg["signals"][signal], "units", ""),
+                        choices = choices_loaded,
+                        receivers = self.dget(msg, "receivers", None),
+                        comment = self.yml_comment_decode(self.dget(msg["signals"][signal], "comment", ""))
+                    )
+                )
+
+            tree[int(msg["id"], 16)] = cantools.database.can.Message(
+                strict = False,
+                frame_id = int(msg["id"], 16),
+                is_extended_frame = False,
+                name = msg["name"],
+                length = self.dget(msg, "length", 8),
+                signals = msg_signals,
+                mtype = self.dget(msg, "type", "can"),
+                comment = self.yml_comment_decode(msg["comment"]),
+                senders = self.dget(msg, "senders", 8),
+                cycle_time = self.dget(msg, "periodicity", None)
+            )
+
+            if callback is not None:
+                callback(ctr)
+
+            ctr += 1
+
+        self.ignored_messages = 0
+        self.added_messages = 0
+
+        for message in tree:
+            if message not in self.messages:
+                self.added_messages += 1
+                self.messages[message] = tree[message]
+            else:
+                self.ignored_messages += 1
+        
+        self.log("Imported " + str(self.added_messages) + " messages, " + str(self.ignored_messages) + " messages already exist and were skipped")
+
+        if len(self.messages) > 0:
+            self.check_message_structure()
+            return True
+        else:
+            self.log("No messages loaded")
+            return False
 
 
     def import_from_yaml(self, file_list, callback = None):

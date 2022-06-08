@@ -3,8 +3,6 @@ from tkinter.simpledialog import askstring
 from tkinter.ttk import Combobox, Treeview
 from typing import OrderedDict
 
-
-
 from source_handler import CanPrintHandler, InvalidFrame, CANHandler, SerialHandlerNew, ArdLogHandler
 from recordclass import recordclass
 
@@ -113,8 +111,8 @@ class oleomux:
         "uart_baud": 115200,     # for serial adapter
         "can_interface": "can0", # for can
         "tab_space_num": 4,
-        "STRUCT_PREFIX": "ole07_",
-        "FUNC_PARSE_PREFIX": "ole07_parse_",
+        "STRUCT_PREFIX": "CONF04_",
+        "FUNC_PARSE_PREFIX": "CONF04_PARSE_",
         "TYPE_S8": "int8_t ",
         "TYPE_U8": "uint8_t",
         "TYPE_S16": "int16_t ",
@@ -164,7 +162,7 @@ class oleomux:
             return
 
         file_list = [f]
-        self.omgr.import_from_yaml(file_list)
+        self.omgr.import_from_yaml_oleo(file_list)
         self.log("Loaded " + str(len(self.omgr.messages)) + " messages from YAML file")
         self.reload_internal_from_omgr()
 
@@ -209,7 +207,7 @@ class oleomux:
             if fd == () or fd is None:
                 return
 
-            result = self.omgr.export_to_yaml(fd, results, callback = partial(self.update_progress, len(results)))
+            result = self.omgr.export_to_yaml_oleo(fd, results, callback = partial(self.update_progress, len(results)))
             if result:
                 messagebox.showinfo(title="OK", message="Export to YAML done!")
             else:
@@ -232,7 +230,7 @@ class oleomux:
         if fname == () or fname == None:
             return
 
-        result = self.omgr.export_to_yaml(fname.name, self.active_message)
+        result = self.omgr.export_to_yaml_oleo(fname.name, self.active_message)
         if result:
             messagebox.showinfo(title="OK", message="Export to YAML done!")
         else:

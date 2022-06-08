@@ -68,23 +68,23 @@ class message_editor:
 
 
             comment_fields = self.app.omgr.yml_comment_encode(msg.comment)
-            self.svs["name_en"] =  StringVar(value=comment_fields["name_en"])
-            self.svs["comment_en"] = comment_fields["comment_en"]
-            self.svs["comment_fr"] = comment_fields["comment_fr"]
+            #self.svs["name_en"] =  StringVar(value=comment_fields["name_en"])
+            self.svs["en"] = comment_fields["en"]
+            self.svs["fr"] = comment_fields["fr"]
             self.svs["src"] = StringVar(value=comment_fields["src"])
 
-            self.lbl.append(Label(self.win, text="Name (EN)"))
-            self.field.append(Entry(self.win, text = self.svs["name_en"]))
+            #self.lbl.append(Label(self.win, text="Name (EN)"))
+            #self.field.append(Entry(self.win, text = self.svs["name_en"]))
 
             self.lbl.append(Label(self.win, text="Comment (EN)"))
             self.comment_field_en = Text(self.win, height=2, width=30)
             self.field.append(self.comment_field_en)
-            self.field[-1].insert(END, str(self.svs["comment_en"]))
+            self.field[-1].insert(END, str(self.svs["en"]))
 
             self.lbl.append(Label(self.win, text="Comment (FR)"))
             self.comment_field_fr = Text(self.win, height=2, width=30)
             self.field.append(self.comment_field_fr)
-            self.field[-1].insert(END, str(self.svs["comment_fr"]))
+            self.field[-1].insert(END, str(self.svs["fr"]))
 
             self.lbl.append(Label(self.win, text="Periodicity"))
             self.field.append(Spinbox(self.win, text = self.svs["periodicity"]))
@@ -125,9 +125,9 @@ class message_editor:
         self.app.omgr.messages[self.mid].length = self.svs["length"].get()
 
         comments_collection = {}
-        comments_collection["comment_en"] = self.comment_field_en.get("1.0", "end-1c")
-        comments_collection["comment_fr"] = self.comment_field_fr.get("1.0", "end-1c")
-        comments_collection["name_en"] = self.svs["name_en"].get()
+        comments_collection["en"] = self.comment_field_en.get("1.0", "end-1c")
+        comments_collection["fr"] = self.comment_field_fr.get("1.0", "end-1c")
+        #comments_collection["name_en"] = self.svs["name_en"].get()
         comments_collection["src"] = self.svs["src"].get()       # not user editable, atm
 
         comments_joined = self.app.omgr.yml_comment_decode(comments_collection)
