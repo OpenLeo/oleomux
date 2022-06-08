@@ -23,7 +23,7 @@ Functionality
 - Import and Export YAML format (single message per file, according to OpenLEO standards)
 - Export/generate C structures and parsing code for integration to microcontroller projects
 - Create/edit/delete signals and messages
-- Show live CAN data/calculated values via an Arduino adapter or SocketCAN (on Linux platforms) for debugging and research
+- [NEARLY COMPLETE] Show live CAN data/calculated values via an Arduino adapter or SocketCAN (on Linux platforms) for debugging and research
 - Play back CAN log files and render calculated values/parameters
 
 NOTE: In general, there is no user-confirmation of actions which can be quite destructive (delete message, close window without saving etc). Be careful what you click on! :)
@@ -57,7 +57,7 @@ For ttkwidgets to work on linux you may need to install
 
 On linux you'll also need "python-can" for SocketCAN to work
 
-To use the Arduino (Serial) adaptor you need an Arduino with a CAN shield attached. An example sketch for MCP2515-based hardware is included in the repository here, but you'll need to adjust the CS/INTERRUPT/SPI pins according to your own board configuration. This software is developed & tested using a Hobbytronics Arduino Leonardo CANBus shield.
+To use the Arduino (Serial) adaptor (CURRENTLY NOT FINISHED) you need an Arduino with a CAN shield attached. An example sketch for MCP2515-based hardware is included in the repository here, but you'll need to adjust the CS/INTERRUPT/SPI pins according to your own board configuration. This software is developed & tested using a Hobbytronics Arduino Leonardo CANBus shield.
 
 Usage
 -----
@@ -72,13 +72,13 @@ Databases included in the repository are compiled from publicly available inform
 
 Main functionality todo list
 ----------------------------
-- Fix cantools dbc output code
+- Fix cantools dbc output code (bugs)
     - if there is no sender/receivers then it outputs illegal dbc
     - if there are spaces in signal names it outputs illegal dbc
 - Check if "is_decimal" is used anywhere
 - Test and fix arduino/socketcan input
 - Replace some 0/1 integers with checkboxes
-- When deleting choices, the last one won't disappear from the treeview (although it is deleted). Reloading window makes it go away
+- When deleting choices, the last one won't disappear from the treeview (although it is deleted). Reloading window makes it go away - seems to be a bug in tkinter
 - More translations and sync up with PSA-RE
 
 
