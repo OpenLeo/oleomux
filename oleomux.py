@@ -897,7 +897,6 @@ class oleomux:
         Use Serial adapter type
         '''
         self.serialPort['state'] = NORMAL
-        self.conn = self.USE_SERIAL
         self.configuration['adapter_type'] = self.USE_SERIAL
 
 
@@ -906,7 +905,6 @@ class oleomux:
         Use CAN adapter type
         '''
         self.serialPort['state'] = DISABLED
-        self.conn = self.USE_CAN
         self.configuration['adapter_type'] = self.USE_CAN
 
 
@@ -914,7 +912,7 @@ class oleomux:
         '''
         Manage connection to different adapter types
         '''
-        if self.conn == self.USE_SERIAL:
+        if self.configuration['adapter_type'] == self.USE_SERIAL:
             if not self.serial_connex: 
                 try:        
                     self.port = self.com_ports[self.serialPort.current()]
@@ -934,18 +932,20 @@ class oleomux:
             else:
                 self.serialPort['state'] = 'normal'
 
-        elif self.conn == self.USE_CAN:
+        elif self.configuration['adapter_type'] == self.USE_CAN:
             if not self.can_connex:
                 try:
-                    
                     self.source_handler = CANHandler(channel = self.configuration["can_interface"], bus="", veh="")
                     self.source_handler.open()
-                    print("[CAN] Interface " + self.configuration["can_interface"] + " initialised successfully")
+                    self.source_handler.start()
+                    self.log("CAN", "Interface " + self.configuration["can_interface"] + " initialised successfully")
                     self.can_connex = True
+                    self.connex.configure(text="Disconnexion")
                     self.startThread()
                     
                 except:
-                    print("[CAN] Unable to initialise CAN interface - offline operation only")
+                    self.log("CAN", "Unable to initialise CAN interface - offline operation only")
+                    self.log("DMP", str(traceback.format_exc()))
                     return False
 
         else:
