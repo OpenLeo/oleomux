@@ -10,7 +10,7 @@
 #define PIN_CS      17              // SPI chip select pin
 #define PIN_INT     7               // interrupt pin
 #define MCP_CRYSTAL MCP_16MHZ       // crystal fitted to hardware
-#define MQ_MAX      10              // on-chip queue size
+#define MQ_MAX      20              // on-chip queue size
 
 #define SPD_125     'a'
 #define SPD_250     'f'
@@ -29,16 +29,20 @@ struct can_frame {
     unsigned char len = 0;
     unsigned char rxBuf[8];
     unsigned long time_stamp;
+    unsigned char used;
 };
 
 volatile struct can_frame mq[MQ_MAX];
-unsigned char can_ok = 0;
+volatile unsigned char mq_len = 0;
 volatile unsigned char ptr_write = 0;
+volatile struct can_frame drain;
+volatile unsigned char can_ok = 0;
+
 unsigned char ptr_read = 0;
-unsigned char default_can_speed = CAN_250KBPS;
+unsigned char default_can_speed = CAN_500KBPS;
 
 unsigned char inchar = 0;
-volatile unsigned char mq_len = 0;
+
 unsigned char output[20];
 unsigned char crc = 0;
 unsigned char i = 0;
@@ -60,8 +64,11 @@ unsigned char crc8(unsigned char crc, unsigned char extract){
 
 
 void restart_can(){
-    can_ok = (CAN0.begin(MCP_ANY, default_can_speed, MCP_CRYSTAL) == CAN_OK);
+    unsigned char temp_status;
+    can_ok = 0;
+    temp_status = (CAN0.begin(MCP_ANY, default_can_speed, MCP_CRYSTAL) == CAN_OK);
     CAN0.setMode(MCP_NORMAL);
+    can_ok = temp_status;
     //Serial.write(ADAPTER_ACK);
 }
 
@@ -69,20 +76,34 @@ void restart_can(){
 void setup()
 {
   Serial.begin(115200);
-  // Initialize MCP2515 running at 16MHz with a baudrate of 500kb/s and the masks and filters disabled.
-  restart_can();
+  while(!Serial){}
+  // dont initialise CAN until the speed is set by the application
+  //restart_can();
   attachInterrupt(digitalPinToInterrupt(PIN_INT), can_recv, FALLING);
 }
 
 
 void can_recv(){
-  if (CAN0.checkReceive() == CAN_MSGAVAIL){
-    CAN0.readMsgBuf(&mq[ptr_write].rxId, &mq[ptr_write].len, mq[ptr_write].rxBuf);
-    mq[ptr_write].time_stamp = millis();
-    ptr_write++;
-    mq_len++;
-    if (ptr_write >= MQ_MAX) ptr_write = 0;
-    if (mq_len > MQ_MAX) mq_len = MQ_MAX;
+  if (can_ok){
+    if (CAN0.checkReceive() == CAN_MSGAVAIL){
+      if (!mq[ptr_write].used){
+        CAN0.readMsgBuf(&mq[ptr_write].rxId, &mq[ptr_write].len, mq[ptr_write].rxBuf);
+        mq[ptr_write].time_stamp = millis();
+        mq[ptr_write].used = 1;
+        ptr_write++;
+        mq_len++;
+        if (ptr_write >= MQ_MAX) ptr_write = 0;
+        if (mq_len > MQ_MAX) mq_len = MQ_MAX;
+      }
+      else{
+        CAN0.readMsgBuf(&drain.rxId, &drain.len, drain.rxBuf);
+      }
+    }
+    else if(CAN0.checkError() == CAN_CTRLERROR){
+      CAN0.mcp2515_setRegister(MCP_EFLG, 0);
+      CAN0.mcp2515_modifyRegister(MCP_CANINTF, MCP_STAT_MERRE, 0);
+      CAN0.mcp2515_modifyRegister(MCP_CANINTF, MCP_STAT_ERRIE, 0);
+    }
   }
 }
 
@@ -104,7 +125,7 @@ void loop(){
                 restart_can();
                 break;
             case SYNC:
-                delay(150);
+                delay(50);
                 break;
             case QSTATUS:
                 Serial.write(0xF0 + can_ok);
@@ -140,9 +161,12 @@ void loop(){
 
         Serial.write(crc);
 
+        mq[ptr_read].used = 0;
+
         ptr_read++;
         if (ptr_read >= MQ_MAX) ptr_read = 0;
         mq_len--;
-
     }
+
+
 }

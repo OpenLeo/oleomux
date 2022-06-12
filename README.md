@@ -59,7 +59,7 @@ On linux you'll also need "python-can" for SocketCAN to work
 
 Adapters
 --------
-To use the Arduino (Serial) adapter you need an Arduino with a CAN shield attached. An example sketch for MCP2515-based hardware is included in the repository here, but you'll need to adjust the CS/INTERRUPT/SPI pins according to your own board configuration. This software is developed & tested using a Hobbytronics Arduino Leonardo CANBus shield.
+To use the Arduino (Serial) adapter you need an Arduino with a CAN shield attached. You need to use the MCP2515 CAN library included here! An example sketch for MCP2515-based hardware is included in the repository here, but you'll need to adjust the CS/INTERRUPT/SPI pins according to your own board configuration. This software is developed & tested using a Hobbytronics Arduino Leonardo CANBus shield.
 IMPORTANT! Some of the CAN buses in these cars operate at relatively high baud rates and bus loads (I/S in AEE04) and the Arduino often chokes. NOt sure yet if this is bad coding, or an actual limitation of the hardware. The SocketCAN adapter doesn't have this problem. 
 
 SocketCAN expects to find the adapter on can0. If yours is different, for now, change the code :D
