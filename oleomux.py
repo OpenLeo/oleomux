@@ -127,6 +127,7 @@ class oleomux:
 
     filter_senders : list = None
     filter_receivers : list = None
+    filter_messages : list = None
     log_filter = None
 
 
@@ -309,7 +310,7 @@ class oleomux:
         '''
         Import a DBC
         '''
-        f = filedialog.askopenfilename(initialdir = "", 
+        f = filedialog.askopenfilename(initialdir = "../database", 
                                                     title = "Select a CAN database", 
                                                     filetypes = (("CAN Message Database", 
                                                                     "*.dbc*"), 
@@ -399,6 +400,25 @@ class oleomux:
         '''
         olt = oleotree(self.master, self, self.filter_receiver_apply, title="Choose RECEIVERS to filter by", tree_type="ecu_rx", selection=self.filter_receivers)
 
+    
+    def filter_by_vehicle(self, *largs):
+        f = filedialog.askopenfilename(initialdir = "", 
+                                                    title = "Select a vehicle definition file", 
+                                                    filetypes = (("OpenLEO vehicle definition", 
+                                                                    "*.yml*"), 
+                                                                ("all files", 
+                                                                    "*.*"))) 
+        if f == () or f == None or f == '':
+            self.log("Nothing selected")
+            return
+        result = self.omgr.load_vehicle_def(f)
+        if not result:
+            messagebox.showerror(title="Oh no!", message="Could not import vehicle file")
+            return
+        
+        self.filter_messages = self.omgr.vehicle_networks["IS"]
+        self.reload_msg_list()
+
 
     def clear_filters(self, *largs):
         '''
@@ -406,6 +426,7 @@ class oleomux:
         '''
         self.filter_receiver = None
         self.filter_sender = None
+        self.filter_messages = None
         self.reload_msg_list()
 
     
@@ -453,6 +474,12 @@ class oleomux:
                         if receiver in self.filter_receivers:
                             include_filter = True
                             break
+            
+            if self.filter_messages is not None:
+                include_filter = False
+                if message in self.filter_messages:
+                    include_filter = True
+                    
             
             if include_filter:
                 self.message_ids.append(self.omgr.to_hex(message, 3))
@@ -651,6 +678,7 @@ class oleomux:
         toolsmenu = Menu(self.menubar)
         toolsmenu.add_command(label="Filter by sender...", command=self.filter_by_sender)
         toolsmenu.add_command(label="Filter by receiver...", command=self.filter_by_receiver)
+        toolsmenu.add_command(label="Filter messages by vehicle...", command=self.filter_by_vehicle)
         toolsmenu.add_command(label="Clear filters", command=self.clear_filters)
         toolsmenu.add_separator()
         #self.menubar.add_command(label="Load CAN Map", command=self.loadCSV)  

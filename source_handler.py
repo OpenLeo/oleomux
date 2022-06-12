@@ -431,6 +431,7 @@ class ArdLogHandler(SourceHandler):
         self.adapter_type = "log"
         self.filename = file_name
         self.owner = owner
+        self.ids_present = {}
         self.open()
 
 
@@ -492,6 +493,11 @@ class ArdLogHandler(SourceHandler):
 
         if not self.is_hexa:
             can_id = self.to_hex(int(can_id))
+
+        if can_id not in self.ids_present:
+            self.ids_present[can_id] = 1
+        else:
+            self.ids_present[can_id] += 1
         
         bytes = []
         for x in line[(self.is_offset + 1):]:

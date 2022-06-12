@@ -40,6 +40,7 @@ class oleomgr:
             self.TAB4 = self.TAB2 + self.TAB2
 
         self.owner = owner
+        self.vehicle_networks = {}
 
         
 
@@ -315,9 +316,8 @@ class oleomgr:
 
         added = 0
         for message in db.messages:
-            for signal in message.signals:
-                print(signal.dtype)
             if message.frame_id not in self.messages:
+                print(message.frame_id, type(message.frame_id))
                 added += 1
                 self.messages[message.frame_id] = message
         
@@ -666,6 +666,34 @@ class oleomgr:
             ctr += 1
         
         return True
+
+    def load_vehicle_def(self, fname):
+        '''
+        Load a vehicle description file
+        WIP - only "IS" network supported currently
+        '''
+        try:
+            f = open(fname)
+            f_contents = f.readlines()
+            f_contents = "".join(f_contents)
+            veh = yaml.safe_load(f_contents)
+
+            if "networks" in veh:
+                for network in veh["networks"]:
+                    if network not in veh:
+                        return False
+                    
+                    else:
+                        self.vehicle_networks[network] = []
+                        for msg in veh[network]:
+                            self.vehicle_networks[network].append(msg)
+
+            self.log("Successfully loaded vehicle file " + str(fname))
+            return True
+        except:
+            self.log("Failed loading vehicle file " + str(fname))
+            self.log("DMP", str(traceback.format_exc()))
+            return False
 
 
     def import_from_yaml_oleo(self, file_list, callback = None):
