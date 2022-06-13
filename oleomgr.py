@@ -1,5 +1,3 @@
-from calendar import c
-from inspect import trace
 from typing import OrderedDict
 import yaml, sys, math, cantools, pprint, copy, traceback, csv
 from cantools.database.can.signal import NamedSignalValue
@@ -725,8 +723,8 @@ class oleomgr:
                 self.log("Missing SIGNAL definitions for message " + str(file_name))
             
             for signal in msg["signals"]:
-                #if self.owner.configuration["debug"] == 1:
-                #    print(signal)
+                if self.owner.configuration["debug"] == 1:
+                    print(signal)
                 result = self.yml_bits_decode(msg["signals"][signal]["bits"])
                 if not result:
                     continue
@@ -737,14 +735,17 @@ class oleomgr:
                 choices = self.dget(msg["signals"][signal], "values", {})
                 choices_loaded = {}
                 if choices is not None:
+                    print(choices)
                     for choice in choices:
-                        # new format
-                        if "comment" in choices[choice] and "name" in choices[choice]:
-                            choices_loaded[choice] = NamedSignalValue(value=choice, name=choices[choice]["name"], comments=self.yml_comment_decode(choices[choice]["comment"]))
-                        # legacy format
-                        if "en" in choices[choice]:
-                            choices_loaded[choice] = NamedSignalValue(value=choice, name=choices[choice]["en"], comments=self.yml_comment_decode(choices[choice]))
-
+                        if type(choice) == dict:
+                            # new format
+                            if "comment" in choices[choice] and "name" in choices[choice]:
+                                choices_loaded[choice] = NamedSignalValue(value=choice, name=choices[choice]["name"], comments=self.yml_comment_decode(choices[choice]["comment"]))
+                            # legacy format
+                            if "en" in choices[choice]:
+                                choices_loaded[choice] = NamedSignalValue(value=choice, name=choices[choice]["en"], comments=self.yml_comment_decode(choices[choice]))
+                        else:
+                            choices_loaded[choice] = NamedSignalValue(value=choice, name=choices[choice])
                 stype = self.dget(msg["signals"][signal], "type", "uint")
                 is_signed = False
                 is_decimal = False
