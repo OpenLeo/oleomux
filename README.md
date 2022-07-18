@@ -76,6 +76,7 @@ Known bugs
 ----------
 - When connected to an adapter the "start/stop" button crashes the program, and disconnect doesn't do anything
 - Sometimes there is no message box for an error, check the console if something unexpected happens (not a bug, but needs fixing)
+- Applying a filter before importing the database files causes an error
 
 
 Databases
