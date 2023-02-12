@@ -1497,8 +1497,15 @@ class oleomux:
 
         if self.omgr.messages[mid].signals[sid].choices is not None:
             if calculation in self.omgr.messages[mid].signals[sid].choices:
-                return str(self.omgr.messages[mid].signals[sid].choices[calculation])
-        
+                calculation = self.omgr.messages[mid].signals[sid].choices[calculation]
+        #print(type(calculation))
+        if type(calculation) != str:
+            try:
+                if "name" in calculation:
+                    return calculation["name"]
+            except:
+                pass
+
         return calculation
 
 

@@ -735,17 +735,22 @@ class oleomgr:
                 choices = self.dget(msg["signals"][signal], "values", {})
                 choices_loaded = {}
                 if choices is not None:
-                    print(choices)
                     for choice in choices:
-                        if type(choice) == dict:
+                        if type(choices[choice]) == dict:
                             # new format
                             if "comment" in choices[choice] and "name" in choices[choice]:
                                 choices_loaded[choice] = NamedSignalValue(value=choice, name=choices[choice]["name"], comments=self.yml_comment_decode(choices[choice]["comment"]))
+                                #print("New: ", choices[choice]["name"])
                             # legacy format
-                            if "en" in choices[choice]:
+                            elif "en" in choices[choice]:
                                 choices_loaded[choice] = NamedSignalValue(value=choice, name=choices[choice]["en"], comments=self.yml_comment_decode(choices[choice]))
+                                #print("Old: ", choices[choice["en"]])
+                            else:
+                                pass
+                                #print("SHOULDNT GET HERE, INVALID FILES")
                         else:
                             choices_loaded[choice] = NamedSignalValue(value=choice, name=choices[choice])
+                            #print("Other type ", type(choice))
                 stype = self.dget(msg["signals"][signal], "type", "uint")
                 is_signed = False
                 is_decimal = False
